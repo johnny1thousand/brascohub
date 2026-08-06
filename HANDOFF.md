@@ -10,8 +10,9 @@ This document is written so a **new Claude Code session (or any developer)** can
 
 - The app is **built, working, and tested** as a single self-contained HTML file, now with a **PHP + MySQL server backend on Hostinger**.
 - **Server-side sync is implemented:** shared household login, auto-save (debounced, background), auto-load on open, offline fallback via `localStorage`.
-- Hosting confirmed: **Hostinger Business plan** (`hostinger_business_v5`), PHP 8.3, MySQL/PDO available. Website: `darkgray-seahorse-474215.hostingersite.com` (no custom domain attached yet — a free domain is pending setup in the account).
-- The MySQL database (`u526894368_cartracker`) was created via the Hostinger API. **The PHP files still need to be uploaded to `public_html` by the owner** (no file-manager/FTP API was available to do this remotely) — see §6.
+- Hosting confirmed: **Hostinger Business plan** (`hostinger_business_v5`), PHP 8.3, MySQL/PDO available, order `1009816343`, account username `u526894368`.
+- **Important:** this hosting account also hosts an unrelated site, **Turnkey General Contractor**, at `darkgray-seahorse-474215.hostingersite.com` (the account's original/main website). Car Tracker was deliberately given its **own separate addon website** so the two projects never share files or get confused: `mediumvioletred-alligator-245269.hostingersite.com`. Always deploy/verify Car Tracker against the `mediumvioletred-alligator-245269` site, never the `darkgray-seahorse-474215` one.
+- The MySQL database (`u526894368_cartracker`, tagged to the `mediumvioletred-alligator-245269` site) was created via the Hostinger API. **The PHP files still need to be uploaded to that site's `public_html` by the owner** (no file-manager/FTP API was available to do this remotely) — see §6.
 - Data model, service logic, and UI are unchanged from the original offline-only version — see §4/§5.
 
 ---
@@ -88,7 +89,8 @@ Same as before (log/edit/delete services, dashboard, spotlight card, driving-rat
 
 ### What's already done
 - Confirmed hosting plan supports PHP/MySQL (Business plan, PHP 8.3, PDO + mysqlnd enabled).
-- **MySQL database created on the live account** via the Hostinger API:
+- **A dedicated addon website was created for Car Tracker**, separate from the account's other site (Turnkey General Contractor, `darkgray-seahorse-474215.hostingersite.com`): **`mediumvioletred-alligator-245269.hostingersite.com`**, root directory `/home/u526894368/domains/mediumvioletred-alligator-245269.hostingersite.com/public_html`.
+- **MySQL database created on the live account**, tagged to that site, via the Hostinger API:
   - Database: `u526894368_cartracker`
   - DB user: `u526894368_cartracker`
   - Host: `localhost` (standard for same-account PHP→MySQL on Hostinger)
@@ -99,12 +101,12 @@ Same as before (log/edit/delete services, dashboard, spotlight card, driving-rat
 ### What's NOT done yet — owner action required
 There is **no remote file-upload capability** available to Claude for this hosting account (the Hostinger API covers billing/domains/database/PHP-config management, but not a file manager or SSH/SFTP for shared hosting). The owner (or a future session with file-manager access) must:
 
-1. **Upload the files** to `public_html` on `darkgray-seahorse-474215.hostingersite.com` (via hPanel **File Manager**, or an FTP client using credentials from hPanel → **Hosting → Advanced → FTP Accounts**):
+1. **Upload the files** to `public_html` on **`mediumvioletred-alligator-245269.hostingersite.com`** — NOT the `darkgray-seahorse-474215` site, that's the unrelated Turnkey General Contractor site (via hPanel **File Manager**, or an FTP client using credentials from hPanel → **Hosting → Advanced → FTP Accounts**):
    - `index.html` → `public_html/index.html`
    - The whole `api/` folder → `public_html/api/`
 2. **Create `api/config.php` on the server** (it is *not* in git). Use `api/config.example.php` as the template. Real values were provided to the owner directly in this conversation (DB credentials + app login + bcrypt hash) — paste them in via File Manager's code editor, then save.
 3. Visit the site. The login screen should appear; log in with the shared household username/password.
-4. (Optional, recommended) Connect a real custom domain to this website in hPanel once one is ready — currently it's a free `*.hostingersite.com` domain pending setup.
+4. (Optional, recommended) Connect a real custom domain to this website in hPanel once one is ready — currently it's a free `*.hostingersite.com` domain.
 
 ### Design decisions locked in (for future reference)
 - **Auth model:** one shared username + password for the whole household (not per-person accounts).
