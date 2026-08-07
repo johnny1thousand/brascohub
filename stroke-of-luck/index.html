@@ -75,12 +75,25 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-/* ---------------- brand mark ---------------- */
-.mark{display:flex;align-items:center;gap:.6rem}
-.mark svg{width:34px;height:34px;flex:none}
+/* ---------------- brand mark ----------------
+   Every logo placement is a .lockup holding the real logo file plus a
+   text-and-SVG stand-in. The stand-in is hidden unless the file is missing
+   (JS adds .no-logo on load error), so the real artwork always wins.
+   The stand-in is NOT the logo — it only keeps the page from looking broken. */
+.lockup{display:inline-flex;align-items:center;position:relative}
+.logo{display:block;width:auto;height:auto}
+.logo-fb{display:none}
+.lockup.no-logo .logo{display:none}
+.lockup.no-logo .logo-fb{display:flex;align-items:center;gap:.6rem}
+
+.mark{gap:.6rem}
+.mark .logo{height:38px}
+.mark .logo-fb svg{width:34px;height:34px;flex:none}
 .mark__text{line-height:.9;display:flex;flex-direction:column}
 .mark__sm{font-family:var(--script);font-size:.95rem;color:var(--cream-dim);letter-spacing:.01em}
 .mark__lg{font-family:var(--script);font-size:1.75rem;color:var(--cream);margin-top:-.28em}
+
+.ftr .mark .logo{height:52px}
 
 /* ---------------- sticky header ---------------- */
 .hdr{
@@ -243,7 +256,11 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   width:300%;height:230%;z-index:-1;
   background:radial-gradient(ellipse at center, rgba(4,18,13,.62) 0%, rgba(4,18,13,.28) 45%, transparent 72%);
 }
+.hero__badge{display:block}
+.hero__badge .logo{width:clamp(168px,19vw,248px);margin:0 auto}
+.hero__badge .logo-fb{justify-content:center}
 .hero__badge .glass{width:clamp(34px,3.6vw,44px);height:auto;margin:0 auto .35rem}
+.hero__word-sm,.hero__word-lg{display:block}
 .hero__word-sm{font-family:var(--script);font-size:clamp(.9rem,1.3vw,1.1rem);color:var(--cream-dim)}
 .hero__word-lg{
   font-family:var(--script);font-size:clamp(2rem,3.8vw,3.1rem);
@@ -386,17 +403,21 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 
 <!-- ============ sticky header ============ -->
 <header class="hdr" id="hdr">
-  <a href="#top" class="mark" aria-label="Stroke of Luck — home">
-    <svg viewBox="0 0 48 48" aria-hidden="true">
-      <circle cx="24" cy="24" r="23" fill="#0B3226" stroke="#FBF7EA" stroke-width="1.5"/>
-      <path d="M15 20h18l-1.6 15.5a2.5 2.5 0 0 1-2.5 2.2h-9.8a2.5 2.5 0 0 1-2.5-2.2Z" fill="none" stroke="#FBF7EA" stroke-width="1.8"/>
-      <ellipse cx="24" cy="20" rx="9" ry="2.6" fill="none" stroke="#FBF7EA" stroke-width="1.8"/>
-      <path d="M24 20V9" stroke="#FBF7EA" stroke-width="1.8" stroke-linecap="round"/>
-      <path d="M24.9 9.4 33 12l-8.1 2.6Z" fill="#E33B2E"/>
-    </svg>
-    <span class="mark__text">
-      <span class="mark__sm">Stroke of</span>
-      <span class="mark__lg">Luck</span>
+  <a href="#top" class="lockup mark" aria-label="Stroke of Luck — home">
+    <img class="logo" src="assets/logo-cream.svg" data-logo-alt="assets/logo-cream.png"
+         width="1024" height="461" alt="Stroke of Luck">
+    <span class="logo-fb" aria-hidden="true">
+      <svg viewBox="0 0 48 48">
+        <circle cx="24" cy="24" r="23" fill="#0B3226" stroke="#FBF7EA" stroke-width="1.5"/>
+        <path d="M15 20h18l-1.6 15.5a2.5 2.5 0 0 1-2.5 2.2h-9.8a2.5 2.5 0 0 1-2.5-2.2Z" fill="none" stroke="#FBF7EA" stroke-width="1.8"/>
+        <ellipse cx="24" cy="20" rx="9" ry="2.6" fill="none" stroke="#FBF7EA" stroke-width="1.8"/>
+        <path d="M24 20V9" stroke="#FBF7EA" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M24.9 9.4 33 12l-8.1 2.6Z" fill="#E33B2E"/>
+      </svg>
+      <span class="mark__text">
+        <span class="mark__sm">Stroke of</span>
+        <span class="mark__lg">Luck</span>
+      </span>
     </span>
   </a>
   <nav class="hdr__nav">
@@ -414,16 +435,22 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   <!-- ============ HERO — pick your side ============ -->
   <h1 class="sr">Stroke of Luck — golf simulator bar. Sip, swing, score.</h1>
 
-  <div class="hero__badge" aria-hidden="true">
-    <svg class="glass" viewBox="0 0 48 52">
-      <path d="M13 18h22l-2 19.5a3 3 0 0 1-3 2.7H18a3 3 0 0 1-3-2.7Z" fill="none" stroke="#FBF7EA" stroke-width="2"/>
-      <ellipse cx="24" cy="18" rx="11" ry="3.2" fill="none" stroke="#FBF7EA" stroke-width="2"/>
-      <ellipse cx="24" cy="25" rx="7.5" ry="2.2" fill="#FBF7EA" opacity=".28"/>
-      <path d="M24 18V4" stroke="#FBF7EA" stroke-width="2" stroke-linecap="round"/>
-      <path d="M25 4.5 35 8l-10 3.4Z" fill="#E33B2E"/>
-    </svg>
-    <div class="hero__word-sm">Stroke of</div>
-    <div class="hero__word-lg">Luck</div>
+  <div class="hero__badge lockup" aria-hidden="true">
+    <img class="logo" src="assets/logo-cream.svg" data-logo-alt="assets/logo-cream.png"
+         width="1024" height="461" alt="">
+    <span class="logo-fb">
+      <span>
+        <svg class="glass" viewBox="0 0 48 52">
+          <path d="M13 18h22l-2 19.5a3 3 0 0 1-3 2.7H18a3 3 0 0 1-3-2.7Z" fill="none" stroke="#FBF7EA" stroke-width="2"/>
+          <ellipse cx="24" cy="18" rx="11" ry="3.2" fill="none" stroke="#FBF7EA" stroke-width="2"/>
+          <ellipse cx="24" cy="25" rx="7.5" ry="2.2" fill="#FBF7EA" opacity=".28"/>
+          <path d="M24 18V4" stroke="#FBF7EA" stroke-width="2" stroke-linecap="round"/>
+          <path d="M25 4.5 35 8l-10 3.4Z" fill="#E33B2E"/>
+        </svg>
+        <span class="hero__word-sm">Stroke of</span>
+        <span class="hero__word-lg">Luck</span>
+      </span>
+    </span>
   </div>
 
   <section class="hero" aria-label="Choose golf or bar">
@@ -649,10 +676,14 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   <div class="shell">
     <div class="ftr__grid">
       <div>
-        <a href="#top" class="mark" style="margin-bottom:1rem">
-          <span class="mark__text">
-            <span class="mark__sm">Stroke of</span>
-            <span class="mark__lg">Luck</span>
+        <a href="#top" class="lockup mark" style="margin-bottom:1rem" aria-label="Stroke of Luck — home">
+          <img class="logo" src="assets/logo-cream.svg" data-logo-alt="assets/logo-cream.png"
+               width="1024" height="461" alt="Stroke of Luck">
+          <span class="logo-fb" aria-hidden="true">
+            <span class="mark__text">
+              <span class="mark__sm">Stroke of</span>
+              <span class="mark__lg">Luck</span>
+            </span>
           </span>
         </a>
         <p style="font-size:.95rem;color:var(--muted);max-width:30ch">Sip. Swing. Score.<br>A golf simulator bar.</p>
@@ -691,6 +722,19 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   window.addEventListener("error", revealAll);
 
   try {
+
+  // Logo files: try the .svg, then the .png, then fall back to the stand-in
+  // lockup. Handles images that already 404'd before this script ran.
+  document.querySelectorAll("img.logo").forEach(function(img){
+    function onFail(){
+      var next = img.getAttribute("data-logo-alt");
+      if (next) { img.removeAttribute("data-logo-alt"); img.src = next; return; }
+      var lk = img.closest(".lockup");
+      if (lk) lk.classList.add("no-logo");
+    }
+    img.addEventListener("error", onFail);
+    if (img.complete && img.naturalWidth === 0) onFail();
+  });
 
   // year
   var yr = document.getElementById("yr");

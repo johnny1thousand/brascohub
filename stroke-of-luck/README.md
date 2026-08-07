@@ -43,6 +43,7 @@ placeholder so nothing fake ships by accident:
 - **Menu link** — drinks/food, plus any happy hour.
 - **League details**
 - **Social URLs** — Instagram and Facebook are `#`.
+- **Logo files** — `assets/logo-cream.svg` + `assets/logo-green.svg`. Until the cream one exists the page shows a stand-in lockup that is NOT the real logo.
 - **Images** — see `assets/README.md`.
 
 **Hours** are transcribed from the placard on the front door and are live on the
