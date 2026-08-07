@@ -5,30 +5,34 @@ Nothing here is committed yet. The page is built so it renders finished
 stand-in. Drop a file in with the exact name below and it takes over
 automatically. No code changes needed.
 
-## Logos — needed
+## Logos — done ✅
 
-The homepage has three logo placements (header, hero centre, footer) and all
-three point at the same file:
+Both colorways are committed. Lossless WebP, `1024×455`, transparent
+background, and both verified rendering in Chromium.
 
-| Filename | Notes |
-| --- | --- |
-| `logo-cream.svg` | **Cream/off-white version.** Used by all three placements, since every one of them sits on a dark background. `logo-cream.png` also works — the page tries `.svg` first, then `.png`. |
-| `logo-green.svg` | **Dark green version.** Not placed yet; it's the one to use on any light background, and for the favicon and share image. |
+| Filename | Ink | Used by |
+| --- | --- | --- |
+| `SOL_Logo_Light.webp` | Cream | **All three placements** — header, hero centre, footer. Every one sits on a dark background, so this is the correct colorway. |
+| `SOL_Logo.webp` | Dark green | Not placed yet. This is the one for any light background (e.g. the cream events section), and the right source for a favicon and share image. |
 
-SVG is strongly preferred over PNG for the logo — it stays sharp at every size
-and on high-DPI screens, and the file is usually smaller. If you only have a
-raster copy, export at 2000px wide or more on a transparent background.
+Note the naming: `_Light` refers to the *ink* being light, so it's the file for
+*dark* backgrounds. `SOL_Logo.webp` is the reverse.
 
-The markup declares the logo as `1024×461` (the ratio of the files supplied) so
-the browser reserves the right space before the image loads and the page doesn't
-jump. If your actual file has a different ratio, update the `width`/`height`
-attributes on the three `img.logo` tags in `index.html`.
+The three `img.logo` tags declare `width="1024" height="455"` so the browser
+reserves the right space and the page doesn't shift as the logo loads. If either
+file is ever re-exported at a different ratio, update those attributes to match.
 
-**Until `logo-cream.svg` exists, the page falls back to a stand-in** — a simple
-SVG glass-and-flag next to "Stroke of Luck" set in Grand Hotel. That stand-in is
-*not* your logo. It's a different script, and the glass is drawn from scratch
-rather than traced. It exists only so the page doesn't look broken. The real
-files should replace it before anything goes live.
+Sizes rendered: 46px tall in the header, 52px in the footer, up to 248px wide in
+the hero — all well under the 1024px source width, so the mark stays crisp on
+high-DPI screens.
+
+If a vector (SVG) version of the logo ever turns up it's worth swapping in — it
+would be resolution-independent and probably smaller. WebP is perfectly fine at
+these sizes though; this is a nice-to-have, not a problem.
+
+Each placement keeps a hidden stand-in lockup that only appears if the logo file
+fails to load, so a broken path can never leave a blank header. That stand-in is
+*not* the logo (different script, glass drawn from scratch) — it's a safety net.
 
 ## Photos
 

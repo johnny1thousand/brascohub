@@ -27,9 +27,13 @@ The palette and motifs come from the actual space — forest green signage,
 kelly-green script, cream, the brass tin ceiling, slate-blue columns, warm wood
 bar, and the red triangles from the `SIP ▲ SWING ▲ SCORE` window vinyl.
 
-Type is Outfit (headings) + Inter (body) + Grand Hotel (script accents), loaded
-from Google Fonts. Grand Hotel stands in for the real logo script until the
-logo file is added.
+The real logo (`assets/SOL_Logo_Light.webp`) is used in the header, hero centre
+and footer. Type is Outfit (headings) + Inter (body) + Grand Hotel (the script
+accent words), loaded from Google Fonts.
+
+Note that Grand Hotel is *not* the logo's typeface — it's a similar retro script
+used for accent words like *indoors* and *stool*. If you'd rather reserve script
+for the logo alone, those can be switched to the display font.
 
 ## Before this goes live
 
@@ -43,8 +47,7 @@ placeholder so nothing fake ships by accident:
 - **Menu link** — drinks/food, plus any happy hour.
 - **League details**
 - **Social URLs** — Instagram and Facebook are `#`.
-- **Logo files** — `assets/logo-cream.svg` + `assets/logo-green.svg`. Until the cream one exists the page shows a stand-in lockup that is NOT the real logo.
-- **Images** — see `assets/README.md`.
+- **Images** — see `assets/README.md`. (Logos are done; photos still needed.)
 
 **Hours** are transcribed from the placard on the front door and are live on the
 page (today's row highlights automatically). Worth a second look before launch:
