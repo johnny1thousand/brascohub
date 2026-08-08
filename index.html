@@ -251,10 +251,8 @@
       <div class="form-grid">
         <div class="full"><label for="svcType">Service</label><select id="svcType"></select></div>
         <div class="full" id="customTypeWrap" style="display:none"><label for="svcCustomType">Custom service name</label><input id="svcCustomType" placeholder="e.g. Transmission fluid"></div>
-        <div><label for="svcDate">Date</label><input id="svcDate" type="date"></div>
-        <div><label for="svcMileage">Odometer (miles)</label><input id="svcMileage" type="number" min="0" placeholder="62500" inputmode="numeric"></div>
-        <div><label for="svcTime">Time spent</label><input id="svcTime" placeholder="45 min"></div>
-        <div><label for="svcCost">Cost ($)</label><input id="svcCost" type="number" min="0" step="0.01" placeholder="39.99" inputmode="decimal"></div>
+        <div class="full"><label for="svcDate">Date</label><input id="svcDate" type="date"></div>
+        <div class="full"><label for="svcMileage">Odometer (miles)</label><input id="svcMileage" type="number" min="0" placeholder="62500" inputmode="numeric"></div>
         <div class="full"><label for="svcNotes">Notes</label><textarea id="svcNotes" placeholder="Parts used, shop, oil type, etc."></textarea></div>
       </div>
     </div>
@@ -321,7 +319,11 @@
   var DEFAULT_INTERVALS = [
     { id: "oil", name: "Oil change", miles: 5000, months: 6 },
     { id: "tires", name: "Tire rotation", miles: 6000, months: 6 },
+    { id: "newtires", name: "New tires", miles: 50000, months: 72 },
+    { id: "alignment", name: "Wheel alignment", miles: 12000, months: 12 },
     { id: "brakes", name: "Brakes (pads)", miles: 40000, months: 36 },
+    { id: "rotors", name: "Brake rotors", miles: 70000, months: 60 },
+    { id: "brakefluid", name: "Brake fluid flush", miles: 30000, months: 24 },
     { id: "plugs", name: "Spark plugs", miles: 30000, months: 36 },
     { id: "air", name: "Engine air filter", miles: 20000, months: 24 },
     { id: "cabin", name: "Cabin air filter", miles: 15000, months: 12 },
@@ -342,10 +344,16 @@
     return seed();
   }
   function normalize(d) {
-    d.vehicles.forEach(function (v) { if (!v.services) v.services = []; if (!v.intervals) v.intervals = cloneIntervals(); });
+    d.vehicles.forEach(function (v) { if (!v.services) v.services = []; ensureIntervals(v); });
     if (!d.currentVehicleId && d.vehicles[0]) d.currentVehicleId = d.vehicles[0].id;
     if (!d.settings) d.settings = {};
     return d;
+  }
+  function ensureIntervals(v) {
+    if (!v.intervals) { v.intervals = cloneIntervals(); return; }
+    var have = {};
+    v.intervals.forEach(function (iv) { have[iv.id] = true; });
+    DEFAULT_INTERVALS.forEach(function (def) { if (!have[def.id]) v.intervals.push(Object.assign({}, def)); });
   }
   function seed() { var v = newVehicle("My Car"); return { vehicles: [v], currentVehicleId: v.id, settings: {} }; }
   function persistLocal() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); } catch (e) { alert("Could not save: " + e.message + (String(e).indexOf("quota") > -1 ? " — try a smaller photo." : "")); } }
@@ -546,8 +554,6 @@
     document.getElementById("svcCustomType").value = s ? (s.customName || "") : "";
     document.getElementById("svcDate").value = s ? s.date : todayISO();
     document.getElementById("svcMileage").value = s && s.mileage != null ? s.mileage : "";
-    document.getElementById("svcTime").value = s ? (s.time || "") : "";
-    document.getElementById("svcCost").value = s && s.cost != null ? s.cost : "";
     document.getElementById("svcNotes").value = s ? (s.notes || "") : "";
     openModal("serviceModal");
     setTimeout(function () { document.getElementById("svcMileage").focus(); }, 50);
@@ -559,8 +565,8 @@
     if (!date) { alert("Please pick a date."); return; }
     var customName = document.getElementById("svcCustomType").value.trim();
     if (typeId === "custom" && !customName) { alert("Please enter a name for the custom service."); return; }
-    var mr = document.getElementById("svcMileage").value, cr = document.getElementById("svcCost").value;
-    var payload = { typeId: typeId, customName: typeId === "custom" ? customName : "", date: date, mileage: mr === "" ? null : Number(mr), time: document.getElementById("svcTime").value.trim(), cost: cr === "" ? null : Number(cr), notes: document.getElementById("svcNotes").value.trim() };
+    var mr = document.getElementById("svcMileage").value;
+    var payload = { typeId: typeId, customName: typeId === "custom" ? customName : "", date: date, mileage: mr === "" ? null : Number(mr), notes: document.getElementById("svcNotes").value.trim() };
     if (editingServiceId) Object.assign(v.services.find(function (x) { return x.id === editingServiceId; }), payload);
     else { payload.id = uid(); v.services.push(payload); }
     if (payload.mileage != null && (v.currentMiles == null || payload.mileage > v.currentMiles) && date <= todayISO()) v.currentMiles = payload.mileage;
