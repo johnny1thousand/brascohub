@@ -12,6 +12,21 @@ login. Nothing in this folder touches the Car Tracker app at the repo root.
 
 ## 1. Current status
 
+- **Live infrastructure is created** (2026-08-22, via the Hostinger API):
+  - Website: **`darkslategray-mosquito-683437.hostingersite.com`** — its own site on order `1009816343`,
+    root `/home/u526894368/domains/darkslategray-mosquito-683437.hostingersite.com/public_html`, PHP 8.3.30,
+    PDO/mysqlnd and GD enabled, `post_max_size` 2048M.
+  - Database: **`u526894368_comictracker`**, user `u526894368_comictracker`, assigned to that website,
+    host `srv450.hstgr.io` (config uses `localhost`, the standard for same-account PHP→MySQL).
+    Password was given to the owner directly — never stored in this repo.
+  - Nothing is shared with Car Tracker: separate site, separate database and user, separate login,
+    separate session cookie name.
+  - **Remaining:** copy the files into that site's `public_html`. Claude could not do this step because
+    the session's network policy blocked `srv450-files.hstgr.io` (the file-upload host) and every other
+    `*.hstgr.io` / site address — the Hostinger API tools reach the account through the MCP proxy, but
+    plain HTTPS to the upload endpoint is refused with a gateway 403. A session whose environment allows
+    `*.hstgr.io` could finish it with `hosting_generateUploadURLV1` (TUS upload, see that tool's docs);
+    otherwise the owner uploads a zip through hPanel → File Manager and extracts it.
 - App is **built and tested**: single self-contained `comics/index.html` plus a small PHP + MySQL API.
 - Tested end-to-end against a real MySQL server: login, add/edit/delete, cover upload, cover replace
   (old files removed), offline queueing, reconnect sync, session expiry, and the live camera capture
@@ -114,7 +129,7 @@ splits the issue number out by itself · autocomplete from characters/books/publ
 run analysis) · search across every field · filter by character · sort by added/book/character/issue/
 value · totals for books, characters, book titles and collection value · edit and delete · CSV export.
 
-## 6. Deploying to Hostinger — owner action required
+## 6. Deploying to Hostinger — history and remaining step
 
 Hosting is the same account as Car Tracker (Business plan, PHP 8.3, MySQL/PDO, account `u526894368`).
 That account already hosts two unrelated sites — **Turnkey General Contractor**
@@ -122,30 +137,32 @@ That account already hosts two unrelated sites — **Turnkey General Contractor*
 (`mediumvioletred-alligator-245269.hostingersite.com`). **Give Comic Tracker its own third website**
 so nothing overlaps.
 
-1. **Create the website.** hPanel → **Websites → Create or migrate a website** → use a free
-   `*.hostingersite.com` domain (or a real domain if you have one). Note the new site's name; every
-   step below happens on **that** site, not the two above.
-2. **Create the database.** hPanel → **Databases → MySQL Databases** → create a database and user
-   (e.g. `u526894368_comics`). Copy the database name, username and password.
-   *Alternative:* you can reuse the Car Tracker database credentials — this app only creates a table
-   called `comics`, which does not collide with Car Tracker's `app_data` table. A separate database is
-   cleaner, but reusing is safe if you would rather not manage another one.
+1. ~~**Create the website.**~~ **Done** — `darkslategray-mosquito-683437.hostingersite.com`.
+   A custom subdomain such as `comictracker.ironmanelabs.com` was not used because `ironmanelabs.com`
+   has no DNS zone at Hostinger (`DNS_getDNSRecordsV1` returns empty — its DNS lives at an external
+   provider), so the record could not be created here and the name would not have resolved. To move to
+   that name later: add the website in hPanel, then point a DNS record at the hosting IP wherever
+   `ironmanelabs.com`'s DNS is managed.
+2. ~~**Create the database.**~~ **Done** — `u526894368_comictracker` with its own user, assigned to
+   the new website. Reusing the Car Tracker database was explicitly ruled out by the owner: nothing is
+   shared between the two apps.
 3. **Upload the files** (hPanel → **File Manager**, or FTP with credentials from
    **Hosting → Advanced → FTP Accounts**) into the new site's `public_html`:
    - `comics/index.html` → `public_html/index.html`
    - `comics/api/` (the whole folder) → `public_html/api/`
    - `comics/uploads/` (the whole folder, including `covers/` and its `.htaccess`) → `public_html/uploads/`
-4. **Create `api/config.php` on the server.** It is deliberately not in git. In File Manager, copy
-   `api/config.example.php` to `api/config.php`, open it in the editor, and fill in:
-   - the three `DB_*` values from step 2 (`DB_HOST` stays `localhost`),
-   - `APP_USERNAME` — the household login name you want,
-   - `APP_PASSWORD_HASH` — a bcrypt hash of your password. Generate it in hPanel → **Advanced →
-     SSH/Terminal** (or ask in chat) with:
-     `php -r 'echo password_hash("your-password-here", PASSWORD_BCRYPT), PHP_EOL;'`
+4. **`api/config.php`** is already filled in inside the deployment zip that was handed to the owner
+   (live DB credentials + the app login). It stays out of git. To change the app password later,
+   regenerate the hash with
+   `php -r 'echo password_hash("new-password", PASSWORD_BCRYPT), PHP_EOL;'`
+   and replace the `APP_PASSWORD_HASH` line on the server.
 5. **Check the covers folder is writable.** In File Manager, right-click `public_html/uploads/covers`
    → Permissions → `755` (Hostinger's default is usually fine). If it is wrong, the app will tell you
    in plain words the first time you save a book with a photo, and keep the book so nothing is lost.
 6. **Open the site over `https://`** and log in. Add a book, take a photo, confirm the cover appears.
+7. If the Hostinger placeholder page shows instead of the app, delete `default.php` from `public_html` —
+   it ships with every new site and `index.html` should take precedence, but deleting it settles the
+   question. (The API exposes no file-delete endpoint, so this one is a File Manager click.)
 
 ## 7. Notes for the next session
 
