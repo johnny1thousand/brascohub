@@ -32,4 +32,4 @@ foreach ($rows as $r) {
     ];
 }
 
-json_response(['books' => $books]);
+json_response(['books' => $books, 'ai' => ai_enabled()]);

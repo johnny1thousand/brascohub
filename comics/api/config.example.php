@@ -12,3 +12,10 @@ define('DB_PASS', 'REPLACE_WITH_DB_PASSWORD');
 define('APP_USERNAME', 'REPLACE_WITH_USERNAME');
 // Generate with: php -r 'echo password_hash("yourpassword", PASSWORD_BCRYPT), PHP_EOL;'
 define('APP_PASSWORD_HASH', 'REPLACE_WITH_BCRYPT_HASH');
+
+// ---- Reading covers with Claude (optional) ----
+// Leave the key empty and the app simply hides the feature: you type the
+// fields in yourself, exactly as before. Key from platform.claude.com.
+define('ANTHROPIC_API_KEY', '');
+// Optional. Defaults to claude-opus-5 when omitted.
+define('AI_MODEL', 'claude-opus-5');

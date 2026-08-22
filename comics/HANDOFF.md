@@ -47,6 +47,7 @@ login. Nothing in this folder touches the Car Tracker app at the repo root.
 | `api/list.php` | Session-guarded; returns every book as JSON (no image bytes, just filenames). |
 | `api/save.php` | Session-guarded; inserts or updates one book, writes/replaces its cover files. |
 | `api/delete.php` | Session-guarded; deletes one book and its cover files. |
+| `api/identify.php` | Session-guarded; sends a cover photo to the Claude API and returns the fields it can support, for the form to prefill. Writes nothing. |
 | `api/.htaccess` | Blocks direct web access to `config.php`; no directory listing. |
 | `uploads/covers/` | Where cover JPEGs are written. `.htaccess` above it blocks script execution and listing. |
 | `fonts/OFL-*.txt` | Licence texts for the two embedded webfonts. Reference only — nothing to upload. |
@@ -119,6 +120,36 @@ thin red frame around the whole app, heavy black display type, red bands for sec
   `comictracker_sid` (not the default `PHPSESSID`) and the login rate-limit file is its own, so this
   app's login is independent of Car Tracker's even if the two ever share a domain.
 
+### Reading covers with Claude (optional)
+
+Set `ANTHROPIC_API_KEY` in `config.php` and the add-a-book form starts filling itself in from the
+photo. Leave it empty and the feature disappears completely — `list.php` returns `ai: false`, the
+button and the settings toggle stay hidden, and typing the fields in by hand works exactly as before.
+
+- **Flow:** photo taken → `identify.php` posts it to the Messages API → the reply prefills the form →
+  **you** check it and save. It never saves for you, and it only fills fields you have left empty, so
+  anything you typed always wins.
+- **Request shape** (verified against the current docs): `claude-opus-5`, image block before the text
+  block, `output_config.format` a `json_schema` so the reply is always parseable JSON, and
+  `output_config.effort: "low"` — this is a short extraction, not a reasoning task. Headers are
+  `x-api-key`, `anthropic-version: 2023-06-01`, `content-type`. Raw cURL rather than the PHP SDK
+  deliberately: shared hosting has no composer, and this keeps the deploy to one file with no vendor tree.
+- **Fields returned:** character, series, issue, year, `year_source`, publisher, variant, confidence,
+  note. `year_source` distinguishes a date **printed on the cover** from one Claude **knows** for a
+  recognised issue — the UI says which, because the second is worth verifying. An implausible year is
+  dropped server-side (`clean_year`).
+- **Cost:** a 1400px cover is ~1,700 visual tokens (`⌈w/28⌉ × ⌈h/28⌉`), so roughly a penny a book on
+  Opus 5, a quarter of a cent on Haiku 4.5 via `AI_MODEL`. Per-call cost is capped whatever gets sent,
+  because the API downscales to the model's visual-token limit. Set a spend limit in the Console.
+- **Failure handling:** the API's own error text is shown verbatim (a bad key or an exhausted credit
+  balance explains itself best); 4xx is reported as permanent, 5xx and network trouble as retryable; a
+  refusal, an unparseable reply, and a missing key each have their own message. Every failure leaves you
+  with a working form and a "type the details in as usual" line.
+- **Not built yet:** a comics-database lookup (ComicVine or similar) to confirm the year, publisher and
+  character list from series + issue rather than from the model's recollection, and barcode scanning for
+  anything printed after the mid-80s. Both slot in alongside `identify.php` without touching the form.
+- Editing `config.php` on the server can take a few seconds to take effect — opcache is on.
+
 ### Features
 Photograph a cover in-page (with flip-camera and a file-picker fallback) · character / book name /
 issue number / condition, plus optional publisher, year, variant, value, paid, date acquired, tags,
@@ -173,5 +204,5 @@ so nothing overlaps.
   means one column in `db.php`'s `CREATE TABLE`, one line in `save.php`, one in `list.php`, and the
   form/detail markup in `index.html`. Existing installs need the column added by hand (the bootstrap
   only creates the table when missing).
-- Ideas deliberately left out for now: wishlist / "want" list, per-book multiple photos, barcode or
-  cover-image lookup against an external comics database, price-guide integration, per-person logins.
+- Ideas deliberately left out for now: wishlist / "want" list, per-book multiple photos, price-guide
+  integration, per-person logins. (Cover reading now exists — see §5.)

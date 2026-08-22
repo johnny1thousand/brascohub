@@ -96,11 +96,12 @@ function covers_dir() {
  * Returns '' if there is nothing to write; throws RuntimeException on a bad image
  * or an unwritable folder.
  */
-function store_cover_image($dataUri, $prefix) {
-    if (!is_string($dataUri) || $dataUri === '') {
-        return '';
-    }
-    if (!preg_match('#^data:image/(jpeg|jpg|png|webp);base64,#i', $dataUri, $m)) {
+/**
+ * Validates a browser-produced data URI and returns [$bytes, $mimeType].
+ * Throws RuntimeException with a plain-language message on anything unusable.
+ */
+function decode_image_data_uri($dataUri) {
+    if (!preg_match('#^data:image/(jpeg|jpg|png|webp);base64,#i', (string) $dataUri, $m)) {
         throw new RuntimeException('Unsupported image format.');
     }
     $ext = strtolower($m[1]) === 'jpg' ? 'jpeg' : strtolower($m[1]);
@@ -111,10 +112,18 @@ function store_cover_image($dataUri, $prefix) {
     if (strlen($bytes) > 12 * 1024 * 1024) {
         throw new RuntimeException('That image is too large.');
     }
-    $info = @getimagesizefromstring($bytes);
-    if ($info === false) {
+    if (@getimagesizefromstring($bytes) === false) {
         throw new RuntimeException('That file is not an image.');
     }
+    return [$bytes, 'image/' . $ext];
+}
+
+function store_cover_image($dataUri, $prefix) {
+    if (!is_string($dataUri) || $dataUri === '') {
+        return '';
+    }
+    list($bytes, $mime) = decode_image_data_uri($dataUri);
+    $ext = substr($mime, strlen('image/'));
     $dir = covers_dir();
     if (!is_dir($dir) || !is_writable($dir)) {
         throw new RuntimeException('The uploads/covers folder is missing or not writable on the server.');
@@ -136,6 +145,27 @@ function delete_cover_image($name) {
     if (is_file($path)) {
         @unlink($path);
     }
+}
+
+// ---------- cover reading (Claude API) ----------
+
+/** The API key, or '' when the owner has not added one to config.php yet. */
+function ai_key() {
+    return defined('ANTHROPIC_API_KEY') ? trim((string) ANTHROPIC_API_KEY) : '';
+}
+
+function ai_model() {
+    $model = defined('AI_MODEL') ? trim((string) AI_MODEL) : '';
+    return $model !== '' ? $model : 'claude-opus-5';
+}
+
+function ai_endpoint() {
+    $url = defined('AI_API_URL') ? trim((string) AI_API_URL) : '';
+    return $url !== '' ? $url : 'https://api.anthropic.com/v1/messages';
+}
+
+function ai_enabled() {
+    return ai_key() !== '' && function_exists('curl_init');
 }
 
 // ---------- field helpers ----------
