@@ -17,7 +17,7 @@ login. Nothing in this folder touches the Car Tracker app at the repo root.
   (old files removed), offline queueing, reconnect sync, session expiry, and the live camera capture
   path (photo → downscaled cover + thumbnail → row in MySQL + files on disk).
 - **Not deployed yet** — the files still need to be uploaded to a Hostinger website's `public_html`,
-  and `api/config.php` created there (see §5). No file-manager/FTP API is available to Claude for this
+  and `api/config.php` created there (see §6). No file-manager/FTP API is available to Claude for this
   hosting account, so the owner does that step.
 
 ## 2. Files
@@ -34,6 +34,7 @@ login. Nothing in this folder touches the Car Tracker app at the repo root.
 | `api/delete.php` | Session-guarded; deletes one book and its cover files. |
 | `api/.htaccess` | Blocks direct web access to `config.php`; no directory listing. |
 | `uploads/covers/` | Where cover JPEGs are written. `.htaccess` above it blocks script execution and listing. |
+| `fonts/OFL-*.txt` | Licence texts for the two embedded webfonts. Reference only — nothing to upload. |
 | `HANDOFF.md` | This document. |
 
 ## 3. How to run / test
@@ -46,7 +47,36 @@ login. Nothing in this folder touches the Car Tracker app at the repo root.
   SSL, so this is fine in production. Where the camera API is unavailable the app automatically falls
   back to the phone's own camera/photo picker, so nothing breaks.
 
-## 4. Architecture & data model
+## 4. Design system
+
+Styled after a comic-book publisher landing page the owner picked as the reference: cream paper, a
+thin red frame around the whole app, heavy black display type, red bands for section headers.
+
+| Token | Value | Role |
+|-------|-------|------|
+| `--paper` | `#EAE3D9` | page behind the frame |
+| `--panel` | `#F4F0E9` | inside the frame, and modal surfaces |
+| `--card` | `#FFFFFF` | cards, inputs |
+| `--ink` | `#14110F` | all text, the "Books" stat block, modal borders |
+| `--muted` | `#7C7368` | secondary text, micro-labels |
+| `--line` | `#DCD3C6` | hairlines and card borders |
+| `--red` | `#EE2733` | brand: frame, primary buttons, group bands, issue badges, accents |
+| `--red-dark` | `#C7141F` | hover on red |
+
+- **Type:** `Archivo Black` for every heading, stat number, card title and the wordmark (uppercase,
+  tight tracking); `Archivo` (variable, 100–900) for body text and the letterspaced uppercase
+  micro-labels. Both are **embedded in `index.html` as base64 latin subsets**, so the app makes no
+  third-party requests and the type is right even offline. They are SIL Open Font License 1.1 fonts
+  by Omnibus-Type; the licence texts are in `fonts/`. If you ever swap them out, keep the two-family
+  split — display face for headings, text face for everything else.
+- **Recurring devices:** the `.eyebrow` label (a short red rule then letterspaced red uppercase) above
+  a big display heading; a trailing red full stop on the wordmark and page title; group headers as
+  solid red bands with white pill chips inside; the issue number as a red tab notched into the
+  top-right of each cover.
+- Cards, inputs and modals use small radii (6–10px) with pill-shaped buttons — sharp panels, round
+  actions, as in the reference.
+
+## 5. Architecture & data model
 
 - **Vanilla JS**, no frameworks, no build step; one IIFE in `index.html`. Same design system as Car
   Tracker (same palette, cards, pills, modals, Ironmane Labs logo).
@@ -82,7 +112,7 @@ splits the issue number out by itself · autocomplete from characters/books/publ
 run analysis) · search across every field · filter by character · sort by added/book/character/issue/
 value · totals for books, characters, book titles and collection value · edit and delete · CSV export.
 
-## 5. Deploying to Hostinger — owner action required
+## 6. Deploying to Hostinger — owner action required
 
 Hosting is the same account as Car Tracker (Business plan, PHP 8.3, MySQL/PDO, account `u526894368`).
 That account already hosts two unrelated sites — **Turnkey General Contractor**
@@ -115,7 +145,7 @@ so nothing overlaps.
    in plain words the first time you save a book with a photo, and keep the book so nothing is lost.
 6. **Open the site over `https://`** and log in. Add a book, take a photo, confirm the cover appears.
 
-## 6. Notes for the next session
+## 7. Notes for the next session
 
 - The owner is **non-technical** — explain steps plainly, give exact clicks, confirm before anything
   irreversible.
