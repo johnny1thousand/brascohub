@@ -49,6 +49,9 @@ function json_response($data, $status = 200) {
 function start_session() {
     $lifetime = 60 * 60 * 24 * 30; // 30 days — household app, avoid re-login on every visit
     ini_set('session.gc_maxlifetime', (string) $lifetime);
+    // Own cookie name so this app's login never shares a session with Car Tracker,
+    // even if the two ever end up on the same domain.
+    session_name('comictracker_sid');
     session_set_cookie_params([
         'lifetime' => $lifetime,
         'path' => '/',

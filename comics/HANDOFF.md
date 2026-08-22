@@ -100,7 +100,9 @@ thin red frame around the whole app, heavy black display type, red bands for sec
   writable), the book stays in the app marked **Not saved** with the server's reason shown in its
   detail view, and it survives a reload — re-saving it after the problem is fixed pushes it up.
 - **Auth:** one shared household username + password (same model as Car Tracker), session cookie
-  HttpOnly, 30-day life, lockout after 8 failed logins for 15 minutes.
+  HttpOnly, 30-day life, lockout after 8 failed logins for 15 minutes. The cookie is named
+  `comictracker_sid` (not the default `PHPSESSID`) and the login rate-limit file is its own, so this
+  app's login is independent of Car Tracker's even if the two ever share a domain.
 
 ### Features
 Photograph a cover in-page (with flip-camera and a file-picker fallback) · character / book name /
