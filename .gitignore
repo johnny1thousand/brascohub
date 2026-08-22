@@ -1,1 +1,4 @@
 api/config.php
+comics/api/config.php
+comics/uploads/covers/*
+!comics/uploads/covers/.gitkeep

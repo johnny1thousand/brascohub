@@ -1,5 +1,10 @@
 # Car Tracker — Project Handoff
 
+> **This repo now holds two separate apps.** This document covers **Car Tracker** (files at the repo
+> root). The **Comic Tracker** app lives in [`comics/`](comics/) and has its own handoff document,
+> [`comics/HANDOFF.md`](comics/HANDOFF.md) — it is a different website, database table and login, and
+> shares nothing with Car Tracker but the design system and the hosting account.
+
 A personal **car maintenance tracker**. Log services (oil, tires, brakes, etc.) with date, mileage, time, cost, and notes; the app tracks history and predicts when each service is next due based on how much you drive.
 
 This document is written so a **new Claude Code session (or any developer)** can continue the work with full context. Read it top to bottom.

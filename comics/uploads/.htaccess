@@ -1,0 +1,5 @@
+# Cover images only — never execute anything in here.
+Options -Indexes
+<FilesMatch "\.(php|phtml|php[0-9]|phps|phar|cgi|pl|py|sh|html?|htaccess)$">
+  Require all denied
+</FilesMatch>
