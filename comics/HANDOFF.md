@@ -65,6 +65,8 @@ login. Nothing in this folder touches the Car Tracker app at the repo root.
 | `api/.htaccess` | Blocks direct web access to `config.php`; no directory listing. |
 | `uploads/covers/` | Where cover JPEGs are written. `.htaccess` above it blocks script execution and listing. |
 | `fonts/OFL-*.txt` | Licence texts for the two embedded webfonts. Reference only — nothing to upload. |
+| `tools/overlap-test.js` | Sweeps the home page across 19 widths: element collisions, heading line-box overlap, overflow, sideways scroll. |
+| `tools/overlap-any.js` | The same checks, generically, against any path — `node tools/overlap-any.js /collection/`. |
 | `tools/settings-test.js` | Opens Settings from all three views and exercises export, sync-now and log-out. |
 | `tools/flags-test.js` | Favorites and grails: toggles, shelf order, counts, the dashboard shortcuts, a server round trip. |
 | `tools/schema-lint.php` | Checks `identify.php`'s schema against the keyword subset structured outputs accepts. Run after any schema change. |
@@ -241,6 +243,22 @@ button and the settings toggle stay hidden, and typing the fields in by hand wor
   (`{view, sort}`); omit it for a plain block. On the grouped views the single count block is
   deliberately not a link — it describes the view you are already on. Each clickable block carries a
   faint ↗ because there is no hover state on a phone and they would otherwise look inert.
+
+### Two layout traps the eye missed
+
+Both were caught by measurement after the owner said the hero "seems to overlap weirdly", and both are
+worth knowing about before touching this CSS again.
+
+**`line-height: .96` on the headings.** Fine in the app, where headings are one line, but Archivo
+Black's own line box is about **1.09em** — so any heading that wrapped had its lines overlapping by
+3-9px, worse the bigger the type. Every heading on the home page wraps on a phone. `brand.css` now uses
+`1.1`. If you tighten it again, run `tools/overlap-test.js`: it measures the real line-box rectangles
+with a `Range`, so it catches this where a screenshot glance does not.
+
+**A grid child's `min-width` is `auto`, not 0.** The hero's CSS mock shelf could not shrink below its
+own min-content (the longest book title), so at 320px it pushed the page 10px sideways. Fixed with
+`.hero > * { min-width: 0 }` and `minmax(0, 1fr)` columns. At 320px the mock also drops to two covers
+across, because three left ~85px each and broke titles mid-word.
 
 ### The site: three pages, one wall between them
 

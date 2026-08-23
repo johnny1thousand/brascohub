@@ -12,6 +12,7 @@
 <style>
   /* ---------- hero ---------- */
   .hero { display: grid; grid-template-columns: 1.05fr .95fr; gap: 46px; align-items: center; padding: 54px 34px 46px; }
+  .hero > * { min-width: 0; }
   .hero h1 { font-size: clamp(38px, 5.2vw, 68px); }
   .hero h1 em { color: var(--red); font-style: normal; }
   .hero .lede { margin: 20px 0 28px; font-size: 18px; }
@@ -22,7 +23,7 @@
   .shelf { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
   .shelf-head { display: flex; align-items: center; gap: 9px; background: var(--red); color: #fff; border-radius: var(--radius-sm); padding: 9px 13px; font-family: var(--display); text-transform: uppercase; font-size: 13px; letter-spacing: .01em; }
   .shelf-head span { margin-left: auto; font-family: var(--sans); font-size: 10.5px; font-weight: 700; letter-spacing: .12em; opacity: .85; }
-  .shelf-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+  .shelf-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
   .mini { border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; background: var(--card); }
   .mini .art { position: relative; aspect-ratio: 2 / 3; display: grid; place-items: center; }
   .mini .art b { position: absolute; top: 0; right: 0; background: var(--red); color: #fff; font-size: 9.5px; font-weight: 700; padding: 3px 6px; border-bottom-left-radius: var(--radius-sm); }
@@ -32,7 +33,7 @@
   .mini .art i.on svg { fill: #fff; }
   .mini .art i.ink { background: var(--ink); }
   .mini .art i.ink svg { fill: #fff; }
-  .mini p { margin: 0; padding: 7px 8px 9px; border-top: 1px solid var(--line); font-family: var(--display); text-transform: uppercase; font-size: 9px; line-height: 1.2; }
+  .mini p { margin: 0; padding: 7px 8px 9px; border-top: 1px solid var(--line); font-family: var(--display); text-transform: uppercase; font-size: 9px; line-height: 1.2; overflow-wrap: anywhere; }
   .a1 { background: linear-gradient(150deg, #F2C14A 0 38%, #C6262E 38% 100%); }
   .a2 { background: linear-gradient(200deg, #2C4C9B 0 55%, #14110F 55% 100%); }
   .a3 { background: linear-gradient(120deg, #C6262E 0 45%, #2C4C9B 45% 100%); }
@@ -80,6 +81,16 @@
     .steps, .grid3 { grid-template-columns: 1fr; }
     .hero .lede { font-size: 16px; }
     .cta-row .btn { flex: 1 1 100%; }
+  }
+  /* "PHOTOGRAPH," on its own is wider than a 320px screen at 38px, so the
+     headline steps down rather than pushing the page sideways. */
+  @media (max-width: 360px) {
+    .hero h1 { font-size: 31px; }
+    /* Three mock covers across leaves ~85px each, which breaks book titles
+       mid-word. Two across keeps them whole. */
+    .shelf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .shelf-head { font-size: 11px; padding: 8px 10px; }
+    .shelf-head span { white-space: nowrap; letter-spacing: .06em; }
   }
 </style>
 </head>
