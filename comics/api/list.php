@@ -4,7 +4,8 @@ require_login();
 
 $rows = db()->query(
     'SELECT client_id, character_name, series, issue, variant, publisher, year, grade,
-            value, paid, acquired, tags, notes, key_info, cover_file, thumb_file, created_at, updated_at
+            value, paid, acquired, tags, notes, key_info, favorite, grail,
+            cover_file, thumb_file, created_at, updated_at
      FROM comics
      ORDER BY series ASC, issue_sort ASC, issue ASC, id ASC'
 )->fetchAll();
@@ -26,6 +27,8 @@ foreach ($rows as $r) {
         'tags'      => $r['tags'],
         'notes'     => $r['notes'] === null ? '' : $r['notes'],
         'key_info'  => $r['key_info'] === null ? '' : $r['key_info'],
+        'favorite'  => empty($r['favorite']) ? '' : '1',
+        'grail'     => empty($r['grail']) ? '' : '1',
         'cover'     => $r['cover_file'],
         'thumb'     => $r['thumb_file'],
         'created_at' => $r['created_at'],

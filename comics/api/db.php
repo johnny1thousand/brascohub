@@ -28,6 +28,8 @@ function db() {
             tags VARCHAR(255) NOT NULL DEFAULT "",
             notes TEXT NULL,
             key_info TEXT NULL,
+            favorite TINYINT(1) NOT NULL DEFAULT 0,
+            grail TINYINT(1) NOT NULL DEFAULT 0,
             cover_file VARCHAR(160) NOT NULL DEFAULT "",
             thumb_file VARCHAR(160) NOT NULL DEFAULT "",
             created_at DATETIME NOT NULL,
@@ -40,7 +42,12 @@ function db() {
         // Columns added after the first release. Safe to run on every request:
         // each one is only added when missing, and a failure here must never
         // take the app down.
-        foreach (['key_info' => 'ADD COLUMN key_info TEXT NULL'] as $column => $ddl) {
+        $added = [
+            'key_info' => 'ADD COLUMN key_info TEXT NULL',
+            'favorite' => 'ADD COLUMN favorite TINYINT(1) NOT NULL DEFAULT 0',
+            'grail'    => 'ADD COLUMN grail TINYINT(1) NOT NULL DEFAULT 0',
+        ];
+        foreach ($added as $column => $ddl) {
             try {
                 $has = $pdo->prepare('SHOW COLUMNS FROM comics LIKE ?');
                 $has->execute([$column]);
@@ -185,6 +192,13 @@ function ai_enabled() {
 }
 
 // ---------- field helpers ----------
+
+/** A checkbox from the browser: "1" on, "" or absent off. Stored as 0/1. */
+function clean_flag($value) {
+    if (is_bool($value)) return $value ? 1 : 0;
+    $value = trim((string) (is_scalar($value) ? $value : ''));
+    return ($value === '' || $value === '0' || strtolower($value) === 'false') ? 0 : 1;
+}
 
 function clean_text($value, $max) {
     $value = is_scalar($value) ? (string) $value : '';

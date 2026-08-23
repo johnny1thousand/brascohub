@@ -23,6 +23,8 @@ $fields = [
     'value'          => clean_money($in['value'] ?? null),
     'paid'           => clean_money($in['paid'] ?? null),
     'acquired'       => clean_date($in['acquired'] ?? null),
+    'favorite'       => clean_flag($in['favorite'] ?? 0),
+    'grail'          => clean_flag($in['grail'] ?? 0),
 ];
 $fields['issue_sort'] = issue_sort_value($fields['issue']);
 
@@ -68,16 +70,18 @@ if ($existing) {
                 issue_sort = :issue_sort, variant = :variant, publisher = :publisher,
                 year = :year, grade = :grade, value = :value, paid = :paid,
                 acquired = :acquired, tags = :tags, notes = :notes, key_info = :key_info,
+                favorite = :favorite, grail = :grail,
                 cover_file = :cover_file, thumb_file = :thumb_file, updated_at = NOW()
             WHERE client_id = :cid';
 } else {
     $sql = 'INSERT INTO comics
                 (client_id, character_name, series, issue, issue_sort, variant, publisher,
-                 year, grade, value, paid, acquired, tags, notes, key_info, cover_file, thumb_file,
-                 created_at, updated_at)
+                 year, grade, value, paid, acquired, tags, notes, key_info, favorite, grail,
+                 cover_file, thumb_file, created_at, updated_at)
             VALUES
                 (:cid, :character_name, :series, :issue, :issue_sort, :variant, :publisher,
-                 :year, :grade, :value, :paid, :acquired, :tags, :notes, :key_info, :cover_file, :thumb_file,
+                 :year, :grade, :value, :paid, :acquired, :tags, :notes, :key_info, :favorite, :grail,
+                 :cover_file, :thumb_file,
                  NOW(), NOW())';
 }
 

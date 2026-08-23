@@ -237,6 +237,37 @@ button and the settings toggle stay hidden, and typing the fields in by hand wor
   deliberately not a link — it describes the view you are already on. Each clickable block carries a
   faint ↗ because there is no hover state on a phone and they would otherwise look inert.
 
+### Favorites and grails
+
+Two flags per book, `favorite` and `grail`, each a `TINYINT(1)` on the `comics` table (added by the
+same idempotent migration loop as `key_info`, so an existing install picks them up on the next
+request). In the browser they ride along in `FIELDS` as `"1"` or `""`, which means they save, sync,
+merge and survive the offline outbox through exactly the same plumbing as every other field — there is
+no separate endpoint. `list.php` deliberately emits `''` rather than `'0'` for off, because the client
+stringifies every field and `"0"` would be truthy.
+
+Three ways to set them:
+
+* **On the card** — a chalice and a heart at the top-left of the cover (`.bflags`). The card had to stop
+  being a `<button>` for this (no nested buttons): it is now a `div.bcard` wrapping `button.bcard-main`
+  plus the two toggles. The click handler checks `[data-flag]` **before** `[data-book]`, so tapping a
+  heart never opens the book. The "not synced" badge moved to the bottom of the cover to make room.
+* **In the detail modal** — the same two buttons, plus a text tag.
+* **In the edit form** — two `.mark` buttons under Condition, read back in `readForm()`.
+
+**The shelf** (`renderLibrary`) groups Library into **Grails, Favorites, Everything else**, in that
+order. A book that is both is a grail and appears once, at the top. With nothing flagged the plain flat
+grid is kept rather than showing a lone "Everything else".
+
+**The dashboard** has two more blocks, Grails and Favorites, which set `settings.flag` and filter the
+shelf to just those. Every other block clears the filter, so "Books" always means all of them. While a
+filter is on, a dark chip appears in the toolbar (`#flagChip`) — tapping it, or "clear search &
+filters", puts everything back. Flag buttons are 31px on desktop and 36px on phones.
+
+`node tools/flags-test.js` covers all of it: both toggles, that tapping one does not open the book, the
+section order, the counts, the two shortcuts, the chip, and a flag surviving a round trip to the server
+and back.
+
 ### Cover read resolution and cost
 
 Each read sends the uncropped photo at `IDENTIFY_MAX` (1400px long edge), which the API bills as
@@ -300,7 +331,7 @@ actual device. There is no iPhone 17 profile in the tooling; the 393-402 band co
 
 ### Features
 Photograph a cover in-page (with flip-camera and a file-picker fallback) · character / book name /
-issue number / condition, plus optional publisher, year, variant, value, paid, date acquired, tags,
+issue number / condition / **favorite** / **grail**, plus optional publisher, year, variant, value, paid, date acquired, tags,
 notes · **Save & add another** carries the character/book/publisher over and pre-fills the next issue
 number, for cataloguing a stack fast · typing `Amazing Spider-Man #300` into the book-name field
 splits the issue number out by itself · autocomplete from characters/books/publishers already entered
