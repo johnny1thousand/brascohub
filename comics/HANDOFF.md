@@ -65,9 +65,9 @@ login. Nothing in this folder touches the Car Tracker app at the repo root.
 | `api/.htaccess` | Blocks direct web access to `config.php`; no directory listing. |
 | `uploads/covers/` | Where cover JPEGs are written. `.htaccess` above it blocks script execution and listing. |
 | `fonts/OFL-*.txt` | Licence texts for the two embedded webfonts. Reference only — nothing to upload. |
-| `collection/chart.php` | The character donut, server-rendered — the public twin of the app's `renderCharChart()`. |
-| `tools/chart-test.js` | The donut in the app: geometry, the cap, the legend arithmetic, slice-click filtering. |
-| `tools/chart-parity.js` + `.php` | Renders the same eight distributions through both implementations and diffs the SVG. |
+| `collection/chart.php` | The main-characters bars, server-rendered — the public twin of the app's `characterBars()`. |
+| `tools/chart-test.js` | The bars in the app: the cap, the ordering, the scaling, row-click filtering. |
+| `tools/chart-parity.js` + `.php` | Renders eight distributions through both implementations and diffs the markup. |
 | `tools/overlap-test.js` | Sweeps the home page across 19 widths: element collisions, heading line-box overlap, overflow, sideways scroll. |
 | `tools/overlap-any.js` | The same checks, generically, against any path — `node tools/overlap-any.js /collection/`. |
 | `tools/settings-test.js` | Opens Settings from all three views and exercises export, sync-now and log-out. |
@@ -247,40 +247,33 @@ button and the settings toggle stay hidden, and typing the fields in by hand wor
   deliberately not a link — it describes the view you are already on. Each clickable block carries a
   faint ↗ because there is no hover state on a phone and they would otherwise look inert.
 
-### The character donut
+### Main characters (the little bar chart)
 
-A donut of books per character, on the Library view of the app and on the public shelf. Both draw from
-the same recipe: **top four characters, then one "Other" slice**, biggest first, ties broken by name.
-Books with no character are excluded and counted in a footnote instead, so the chart stays about
-characters.
+Top five characters as short horizontal bars, longest first, on the Library view of the app and on the
+public shelf. Books with no character are left out of it.
 
-**The palette is computed, not chosen.** Fills are `#EE2733` red, `#B33586` magenta, `#C98A00` gold,
-`#2C4C9B` blue, and `#4A443D` for Other. That set came out of the colour-vision validator in the
-`dataviz` skill, which measures perceptual distance under protanopia, deuteranopia and tritanopia. Two
-results worth keeping:
+**It was a pie first, and the pie was wrong.** Two things killed it. A brute-force sweep of all of sRGB
+found **no fifth hue** that stays distinguishable from red, magenta, gold and blue under protanopia —
+zero candidates — so a pie could never show more than four characters honestly. And a pie is the worst
+form for the actual question: two close characters are impossible to rank by arc. Bars fix both. The
+name reads left to right so the chart needs **no key**, length does the comparing, and colour stops
+carrying meaning at all — one hue, `--red`, so there is nothing to validate for colour-vision.
 
-* A brute-force sweep of all of sRGB found **no fifth hue** that stays distinguishable from those four
-  under protanopia — zero candidates. That is why the cap is four characters plus Other, and why adding
-  "just one more slice" is not a small change.
-* The worst adjacent pair in the shipped ring is **6.5 ΔE**, inside the 6–8 band the skill permits
-  *only* with secondary encoding. Hence the three encodings every slice carries: a ~2px gap of surface
-  between slices, a legend row naming it, and its share printed as a number. Never remove all three.
+Bars are scaled to the **biggest character**, not to the collection, because the question is "who are
+my main characters", not "what share is Batman". The top bar is therefore always full width. Anything
+past the fifth character is a `+ n more characters` note in the header rather than a slice.
 
-Gold sits at 2.95:1 against white, just under the 3:1 contrast floor — permitted because the legend
-labels every slice in text.
+The card is deliberately small — about 420x190px, capped at `max-width: 420px` — and styled like the
+rest of the app: display caps for names, red fill on a `#EFE9E0` track, tabular numerals.
 
-**The two implementations must agree.** The app draws it in JS, the public page in PHP, and
-`node tools/chart-parity.js` renders eight awkward distributions (a dead heat, a long tail, 99-to-1,
-ties, unfiled books) through both and asserts the SVG is **byte-identical** apart from the `data-char`
-attribute the app adds for click-to-filter. If you change one, run it and change the other.
+In the app each row is a `<button>` that filters the shelf to that character, and clicking it again
+clears the filter. On the public shelf the rows are plain `<div>`s, since there is nothing to filter.
+That is the **only** difference between the two implementations, and `node tools/chart-parity.js`
+enforces it: it renders eight distributions (a dead heat, a long tail, 99-to-1, ties, unfiled books, a
+name containing markup) through both the JS and the PHP and asserts the markup is otherwise identical.
+`tools/chart-test.js` covers the cap, the ordering, the scaling and the click-to-filter.
 
-In the app a slice or a legend row filters the shelf to that character, and clicking it again clears
-the filter; "Other" is not a link. The `<svg>` sets `pointer-events: none` with `auto` on the slices, so
-clicks over the hole fall through instead of being swallowed. The hover dim is wrapped in
-`@media (hover: hover) and (pointer: fine)` — on a touch screen the hover state sticks after a tap and
-left the whole chart washed out.
-
-The chart hides itself below two characters (one character is what the stat block already says) and on
+The card hides itself below two characters (one character is what the stat block already says) and on
 the grouped views, where it would only repeat the grouping.
 
 ### Two layout traps the eye missed

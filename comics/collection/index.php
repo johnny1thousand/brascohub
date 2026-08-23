@@ -109,29 +109,16 @@ header('Cache-Control: public, max-age=300');
   .meta .s { font-size: 10px; color: var(--red); font-weight: 700; text-transform: uppercase; letter-spacing: .11em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .meta .k { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
 
-  .chart-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px 20px; margin-top: 30px; }
-  .chart-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-  .chart-head h3 { font-size: 14px; }
-  .chart-head span { margin-left: auto; white-space: nowrap; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .14em; color: var(--muted); }
-  .chart-body { display: flex; align-items: center; gap: 26px; margin-top: 12px; flex-wrap: wrap; }
-  .donut { width: 168px; height: 168px; flex: 0 0 auto; }
-  .donut .slice { transition: opacity .12s; }
-  /* Only dim the other slices for a real pointer — on a touch screen the hover
-     state sticks after a tap and the whole chart stays washed out. */
-  @media (hover: hover) and (pointer: fine) {
-    .donut:hover .slice { opacity: .55; }
-    .donut .slice:hover { opacity: 1; }
-  }
-  .donut-num { font-family: var(--display); font-size: 26px; text-anchor: middle; fill: var(--ink); }
-  .donut-lab { font-size: 9px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; text-anchor: middle; fill: var(--muted); }
-  .legend { flex: 1 1 220px; min-width: 0; max-width: 360px; display: flex; flex-direction: column; gap: 2px; }
-  .lg-row { display: flex; align-items: center; gap: 10px; padding: 7px 8px; }
-  .lg-dot { width: 11px; height: 11px; border-radius: 3px; flex: 0 0 auto; }
-  .lg-name { flex: 1 1 auto; min-width: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .lg-name em { font-style: normal; color: var(--muted); font-size: 11.5px; }
-  .lg-n { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .lg-pct { width: 42px; text-align: right; font-size: 11.5px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
-  .lg-note { margin: 6px 0 0 8px; font-size: 11.5px; color: var(--muted); }
+  .chart-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px 15px; margin-top: 30px; max-width: 420px; }
+  .chart-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 9px; }
+  .chart-head h3 { font-family: var(--sans); font-size: 11px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; color: var(--muted); }
+  .chart-head span { margin-left: auto; white-space: nowrap; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+  .cbars { display: flex; flex-direction: column; gap: 3px; }
+  .cbar { display: grid; grid-template-columns: minmax(0, 88px) 1fr auto; align-items: center; gap: 10px; padding: 4px 5px; }
+  .cbar-name { font-family: var(--display); text-transform: uppercase; font-size: 10.5px; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cbar-track { height: 10px; background: #EFE9E0; border-radius: 2px; overflow: hidden; }
+  .cbar-fill { display: block; height: 100%; background: var(--red); border-radius: 2px; }
+  .cbar-n { font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 18px; text-align: right; }
 
   .empty { background: var(--card); border: 1px dashed var(--line); border-radius: var(--radius); padding: 44px 26px; text-align: center; margin: 30px 0 0; }
   .empty h2 { font-size: 24px; }
@@ -146,9 +133,8 @@ header('Cache-Control: public, max-age=300');
     .section, .plug { margin-left: 0; margin-right: 0; }
     .counts { gap: 20px; }
     .counts b { font-size: 28px; }
-    .chart-card { padding: 15px 14px 17px; }
-    .chart-body { gap: 14px; }
-    .donut { width: 140px; height: 140px; margin: 0 auto; }
+    .chart-card { padding: 12px 13px 13px; max-width: none; }
+    .cbar { grid-template-columns: minmax(0, 76px) 1fr auto; gap: 8px; }
   }
 </style>
 </head>
