@@ -217,9 +217,12 @@ button and the settings toggle stay hidden, and typing the fields in by hand wor
   Searching or filtering force-opens every row, or the matches would be hidden inside collapsed rows and
   the search would look broken. The four-card dashboard is replaced here by a single Characters count —
   shelf totals are noise when browsing by character.
-- **Books** keeps the full dashboard and shows every cover under each title, because seeing the run and
-  its missing issues at a glance is the point of that view. If it should collapse like Characters, the
-  renderer already takes a `collapsible` flag — pass `true`.
+- **Books** works the same way: one row per title, collapsed, with its own single count. The run
+  analysis (`#300–#301`, `Complete run`, `Missing #302`) stays on the closed row, so a title's state is
+  readable without opening it.
+- Open rows are keyed `view + ":" + name`, so a character and a book title that share a name (a "Batman"
+  character and a "Batman" title) do not open each other when you switch views — there is a test for
+  exactly that.
 
 ### Features
 Photograph a cover in-page (with flip-camera and a file-picker fallback) · character / book name /

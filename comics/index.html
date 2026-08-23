@@ -636,7 +636,7 @@
     if (!state.books.length) { wrap.innerHTML = emptyState(true); return; }
     if (!books.length) { wrap.innerHTML = emptyState(false); return; }
     if (view === "characters") wrap.innerHTML = renderGrouped(books, "character", "Unfiled", true);
-    else if (view === "series") wrap.innerHTML = renderGrouped(books, "series", "Loose issues", false);
+    else if (view === "series") wrap.innerHTML = renderGrouped(books, "series", "Loose issues", true);
     else wrap.innerHTML = '<div class="group"><div class="covers">' + books.map(card).join("") + "</div></div>";
   }
 
@@ -694,7 +694,8 @@
         return '<div class="group"><div class="group-head"><h2>' + esc(name) + "</h2>" + chips + "</div>" +
           '<div class="covers">' + list.map(card).join("") + "</div></div>";
       }
-      var open = forceOpen || !!expandedGroups[name];
+      var stateKey = state.settings.view + ":" + name;
+      var open = forceOpen || !!expandedGroups[stateKey];
       return '<div class="group">' +
         '<button class="group-head open-head' + (open ? " is-open" : "") + '" data-group="' + esc(name) + '">' +
         '<span class="caret">' + (open ? "▾" : "▸") + "</span>" +
@@ -764,10 +765,12 @@
     });
     var pending = state.outbox.length;
     var rejected = state.books.filter(function (b) { return b.rejected; }).length;
-    if (view === "characters") {
-      // Browsing by character: the shelf totals are noise here.
+    // On the grouped views the shelf totals are noise: show only that view's count.
+    if (view === "characters" || view === "series") {
       el("stats").className = "stats stats--one";
-      el("stats").innerHTML = stat("Characters", Object.keys(chars).length, "in the collection", "ink");
+      el("stats").innerHTML = view === "characters"
+        ? stat("Characters", Object.keys(chars).length, "in the collection", "ink")
+        : stat("Book titles", Object.keys(series).length, "series or one-shots", "ink");
       return;
     }
     el("stats").className = "stats";
@@ -1685,9 +1688,9 @@
     if (c) { openDetail(c.getAttribute("data-book")); return; }
     var head = e.target.closest("[data-group]");
     if (head) {
-      var name = head.getAttribute("data-group");
-      if (expandedGroups[name]) delete expandedGroups[name];
-      else expandedGroups[name] = true;
+      var key = state.settings.view + ":" + head.getAttribute("data-group");
+      if (expandedGroups[key]) delete expandedGroups[key];
+      else expandedGroups[key] = true;
       render();
       return;
     }
@@ -1708,10 +1711,12 @@
   el("settingsBtn").onclick = function () {
     var pending = state.outbox.length;
     var rejected = state.books.filter(function (b) { return b.rejected; }).length;
-    if (view === "characters") {
-      // Browsing by character: the shelf totals are noise here.
+    // On the grouped views the shelf totals are noise: show only that view's count.
+    if (view === "characters" || view === "series") {
       el("stats").className = "stats stats--one";
-      el("stats").innerHTML = stat("Characters", Object.keys(chars).length, "in the collection", "ink");
+      el("stats").innerHTML = view === "characters"
+        ? stat("Characters", Object.keys(chars).length, "in the collection", "ink")
+        : stat("Book titles", Object.keys(series).length, "series or one-shots", "ink");
       return;
     }
     el("stats").className = "stats";
