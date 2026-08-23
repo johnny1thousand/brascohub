@@ -238,9 +238,12 @@
   @media (max-width: 860px) {
     .wrap { padding: 10px; }
     .surface { padding: 16px 14px 24px; }
-    .topbar { grid-template-columns: auto 1fr; gap: 10px; padding-bottom: 12px; }
+    /* The buttons take their natural width and the wordmark gets what is left,
+       so the top-right controls can never be pushed off the edge. */
+    .topbar { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding-bottom: 12px; }
+    .brand { min-width: 0; }
     .brand-logo { display: none; }
-    .brand-name { font-size: 15px; }
+    .brand-name { font-size: 15px; overflow: hidden; text-overflow: ellipsis; }
     .segments { grid-column: 1 / -1; order: 3; justify-content: flex-start; overflow-x: auto; }
     .seg { padding: 8px 11px; font-size: 11px; }
     .seg.active::after { left: 11px; right: 11px; }
@@ -284,6 +287,21 @@
     .empty { padding: 34px 20px; }
     .empty h3 { font-size: 21px; }
   }
+
+  /* Narrow phones. The controls must always be reachable, so decoration is given
+     up first: the status label goes, then the wordmark shrinks, and only as a
+     last resort does it truncate. Measured from 320px up. */
+  @media (max-width: 400px) {
+    .sync-pill { padding: 7px; }
+    .sync-pill::after { display: none; }        /* the coloured dot still shows state */
+    .top-right { gap: 6px; }
+    .top-right .btn-primary { padding: 11px 13px; }
+  }
+  @media (max-width: 360px) {
+    .surface { padding: 14px 11px 22px; }
+    .brand-name { font-size: 13px; }
+    .icon-btn { width: 34px; height: 34px; }
+  }
 </style>
 </head>
 <body>
@@ -324,8 +342,7 @@
 
     <div class="pagehead">
       <div>
-        <p class="eyebrow">My collection</p>
-        <h1>Comic Books<i>.</i></h1>
+        <h1>My Collection</h1>
       </div>
       <p class="lede">Photograph a cover, name the character, the book and the issue — the shelf sorts itself out.</p>
     </div>

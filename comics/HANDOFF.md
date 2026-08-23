@@ -220,9 +220,24 @@ button and the settings toggle stay hidden, and typing the fields in by hand wor
 - **Books** works the same way: one row per title, collapsed, with its own single count. The run
   analysis (`#300–#301`, `Complete run`, `Missing #302`) stays on the closed row, so a title's state is
   readable without opening it.
+- The page heading is just **My Collection** — no eyebrow label above it, no trailing red full stop.
 - Open rows are keyed `view + ":" + name`, so a character and a book title that share a name (a "Batman"
   character and a "Batman" title) do not open each other when you switch views — there is a test for
   exactly that.
+
+### Fitting on a phone
+
+The top bar has to hold the wordmark, the sync status, **+ Add** and the settings gear. It used to lay
+those out at natural width, so the wordmark's fixed ~142px pushed the buttons past the edge — 8-11px
+over on a 390-393px iPhone, 26px at 375, 81px with horizontal scrolling at 320. The fix is structural
+rather than a tuned breakpoint: on mobile the top bar is `minmax(0, 1fr) auto`, so the controls always
+take their natural width and the wordmark gets the remainder (truncating as a last resort). Below 400px
+the status pill drops to its coloured dot; below 360px the wordmark and gear shrink a step.
+
+`node tools/fit-test.js` measures the overflow at 320/375/390/393/402/412/430 and fails if anything
+crosses the edge or the page scrolls sideways. **Caveat:** that is Chromium with a phone viewport, not
+Safari on a real handset — fine for catching layout overflow, not a substitute for looking at it on the
+actual device. There is no iPhone 17 profile in the tooling; the 393-402 band covers where it lands.
 
 ### Features
 Photograph a cover in-page (with flip-camera and a file-picker fallback) · character / book name /
