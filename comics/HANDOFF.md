@@ -264,11 +264,14 @@ model saw comes back as 0.10/0.80 fractions at every size and on every model. Ve
 
 The name is **LongBox**; the owner supplied the artwork (a horizontal `LONGBOX / MY COMICS` wordmark
 and a matching square app icon, both with real alpha). Both are embedded as base64 WebP in
-`index.html`, like the fonts — the app still makes no third-party requests.
+`index.html` at 700px and 180px wide respectively (700px gives the 52px top bar headroom on a 3x
+phone screen), like the fonts — the app still makes no third-party requests.
 
-* **Top bar** — the horizontal wordmark (`.brand-mark`), 30px tall, 26px under 860px, 22px under
-  360px. The square icon was tried here first and turned to mush at 28px, because its `MY COMICS`
-  band is only ~8% of its height; the wordmark stays legible small.
+* **Top bar** — the horizontal wordmark (`.brand-mark`), **52px** tall, 42px under 860px, 34px under
+  360px (the owner asked for it much bigger than the 30/26/22px it started at; no crop was needed —
+  the lockup is 2.9:1, so even at 52px it is only ~151px wide and the controls still fit at 320px).
+  The square icon was tried here first and turned to mush at 28px, because its `MY COMICS` band is
+  only ~8% of its height; the wordmark stays legible small.
 * **Login card** — the same wordmark at up to 250px wide, inside the `h1` (`.login-wordmark`), with
   the `Ironmane Labs` eyebrow kept underneath.
 * **Icon** — the square badge, 180px, serves as both `rel="icon"` and `apple-touch-icon`, so a
