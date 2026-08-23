@@ -97,6 +97,19 @@
   .pagehead h1 i { color: var(--red); font-style: normal; }
   .pagehead .lede { color: var(--muted); font-size: 13.5px; font-weight: 500; max-width: 340px; padding-bottom: 5px; }
 
+  /* ---------- comps ---------- */
+  .comps { border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--card); padding: 12px 13px 11px; margin: 14px 0 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .btn-comps, .btn-checked { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 9px 14px; font: inherit; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .09em; text-decoration: none; cursor: pointer; }
+  .btn-comps { background: var(--ink); border: 1px solid var(--ink); color: #fff; }
+  .btn-comps:hover { background: var(--red); border-color: var(--red); }
+  .btn-checked { background: transparent; border: 1px solid var(--line); color: var(--muted); }
+  .btn-checked:hover { border-color: var(--ink); color: var(--ink); }
+  .comps-note { flex: 1 1 100%; margin: 2px 0 0; font-size: 11.5px; color: var(--muted); }
+  .comps-note.is-stale { color: var(--red); font-weight: 600; }
+  .comps-hint { flex: 1 1 100%; margin: 0; font-size: 11px; color: var(--muted); opacity: .8; }
+  label a { float: right; font-size: 10px; font-weight: 700; letter-spacing: .06em; color: var(--red); text-decoration: none; text-transform: uppercase; }
+  label a:hover { text-decoration: underline; }
+
   /* ---------- main characters ---------- */
   .chart-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px 15px; margin-top: 14px; max-width: 420px; }
   .chart-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 9px; }
@@ -488,7 +501,7 @@
               <div><label for="fPublisher">Publisher</label><input id="fPublisher" list="publisherList" placeholder="Marvel" autocomplete="off"></div>
               <div><label for="fYear">Year</label><input id="fYear" type="number" inputmode="numeric" placeholder="1988"></div>
               <div class="full"><label for="fVariant">Variant / printing</label><input id="fVariant" placeholder="2nd printing, Todd McFarlane cover…"></div>
-              <div><label for="fValue">Value ($)</label><input id="fValue" type="number" step="0.01" min="0" inputmode="decimal" placeholder="120"></div>
+              <div><label for="fValue">Value ($) <a id="fCompsLink" href="#" target="_blank" rel="noopener noreferrer">recent sales ↗</a></label><input id="fValue" type="number" step="0.01" min="0" inputmode="decimal" placeholder="120"></div>
               <div><label for="fPaid">Paid ($)</label><input id="fPaid" type="number" step="0.01" min="0" inputmode="decimal" placeholder="40"></div>
               <div><label for="fAcquired">Date acquired</label><input id="fAcquired" type="date"></div>
               <div><label for="fTags">Tags</label><input id="fTags" placeholder="key issue, signed" autocomplete="off"></div>
@@ -677,6 +690,7 @@
     out.thumbData = b.thumbData || "";
     out.removeCover = !!b.removeCover;
     out.rejected = b.rejected || "";
+    out.value_checked = b.value_checked || "";
     out.created_at = b.created_at || "";
     out.updated_at = b.updated_at || "";
     out.rev = b.rev || 0;
@@ -691,6 +705,34 @@
   function issueNum(issue) { var m = String(issue || "").match(/(\d+(?:\.\d+)?)/); return m ? parseFloat(m[1]) : null; }
   function money(n) { return "$" + Number(n).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 }); }
   function num(v) { var n = parseFloat(String(v).replace(/[$,]/g, "")); return isNaN(n) ? null : n; }
+  // eBay's sold search, pre-filled from the book. Since 22 July 2026 eBay sends
+  // signed-out visitors to a login page for sold listings, so the button leans on
+  // the browser already being signed in — which is exactly why this is a link
+  // rather than something the server fetches.
+  function compsUrl(b) {
+    var terms = [b.series || b.character || "", b.issue ? "#" + b.issue : ""].join(" ").trim();
+    if (!terms) terms = b.character || "comic";
+    return "https://www.ebay.com/sch/i.html?_nkw=" + encodeURIComponent(terms) +
+      "&LH_Sold=1&LH_Complete=1&_sop=13";
+  }
+
+  var STALE_DAYS = 180;
+
+  function daysSince(stamp) {
+    if (!stamp) return null;
+    var t = Date.parse(String(stamp).replace(" ", "T"));
+    if (isNaN(t)) return null;
+    return Math.floor((Date.now() - t) / 86400000);
+  }
+
+  function staleValues() {
+    return state.books.filter(function (b) {
+      if (num(b.value) === null) return false;
+      var d = daysSince(b.value_checked);
+      return d === null || d >= STALE_DAYS;
+    }).length;
+  }
+
   function plural(n, w) { return n + " " + w + (n === 1 ? "" : "s"); }
   function bookTitle(b) {
     var t = b.series || b.character || "Untitled";
@@ -908,6 +950,7 @@
 
   function renderStats() {
     var chars = {}, series = {}, value = 0, grails = 0, favs = 0;
+    var stale = staleValues();
     var view = state.settings.view;
     state.books.forEach(function (b) {
       if (b.character) chars[b.character.trim().toLowerCase()] = 1;
@@ -937,7 +980,9 @@
       stat("Characters", Object.keys(chars).length, "tracked", "", { view: "characters" }) +
       stat("Book titles", Object.keys(series).length, "series or one-shots", "", { view: "series" }) +
       stat("Value", value > 0 ? money(value) : "—",
-        value > 0 ? "most valuable first" : "add values to track this",
+        value > 0
+          ? (stale ? plural(stale, "value") + " worth re-checking" : "most valuable first")
+          : "add values to track this",
         "red", { view: "library", sort: "value" }) +
       stat("Grails", grails, grails ? "the ones you hunted" : "nothing flagged yet",
         grails ? "ink" : "", { view: "library", flag: "grail" }) +
@@ -1107,6 +1152,7 @@
     el("fYear").value = draft.year;
     el("fVariant").value = draft.variant;
     el("fValue").value = draft.value;
+    el("fCompsLink").href = compsUrl(draft);
     el("fPaid").value = draft.paid;
     el("fAcquired").value = draft.acquired;
     el("fTags").value = draft.tags;
@@ -1670,6 +1716,22 @@
     showToast(b[flag] ? "\u2713 " + label : label + " removed");
   }
 
+  function compsRow(b) {
+    var days = daysSince(b.value_checked);
+    // A date always wins: if you tapped "checked", say so, value or no value.
+    var when = days === 0 ? "Checked today."
+      : days !== null && days < STALE_DAYS ? "Checked " + plural(days, "day") + " ago."
+      : days !== null ? "Last checked " + plural(days, "day") + " ago — worth a look."
+      : num(b.value) === null ? "No value recorded yet."
+      : "Value never checked against sales.";
+    return '<div class="comps">' +
+      '<a class="btn-comps" href="' + esc(compsUrl(b)) + '" target="_blank" rel="noopener noreferrer">' +
+      "Recent sales on eBay \u2197</a>" +
+      '<button class="btn-checked" data-checked="' + esc(b.client_id) + '">Mark value checked</button>' +
+      '<p class="comps-note' + (days !== null && days >= STALE_DAYS ? " is-stale" : "") + '">' + esc(when) + "</p>" +
+      '<p class="comps-hint">eBay asks you to sign in before it will show sold prices.</p></div>';
+  }
+
   function openDetail(id) {
     var b = findBook(id);
     if (!b) return;
@@ -1703,6 +1765,7 @@
       '<dl class="kv">' + rows.map(function (r) {
         return "<dt>" + esc(r[0]) + "</dt><dd>" + esc(r[1]) + "</dd>";
       }).join("") + "</dl>" +
+      compsRow(b) +
       (b.key_info ? '<div class="notes keyinfo"><strong>Why it matters</strong>' + esc(b.key_info) + "</div>" : "") +
       (b.notes ? '<div class="notes">' + esc(b.notes) + "</div>" : "") +
       (b.rejected ? '<p class="menu-note" style="color:var(--accent);font-weight:700">The server would not save this book: ' + esc(b.rejected) + ' Edit it and save again.</p>'
@@ -1782,6 +1845,7 @@
     if (b.coverData) p.cover_data = b.coverData;
     if (b.thumbData) p.thumb_data = b.thumbData;
     if (b.removeCover) p.remove_cover = true;
+    if (b.valueChecked) p.value_checked = 1;
     return p;
   }
 
@@ -1824,6 +1888,8 @@
           b.thumb = saved.thumb || "";
           if (saved.created_at) b.created_at = saved.created_at;
           if (saved.updated_at) b.updated_at = saved.updated_at;
+          // The server owns this date; take back whatever it stamped.
+          if (typeof saved.value_checked === "string") b.value_checked = saved.value_checked;
         }
         b.rejected = "";
         if (b.rev === rev) {
@@ -1831,6 +1897,7 @@
           b.coverData = "";
           b.thumbData = "";
           b.removeCover = false;
+          b.valueChecked = false;
           dropEntry(entry);
         }
         flushing = false;
@@ -2091,6 +2158,19 @@
     closeModal("detailModal");
     openBookModal(id);
   };
+  el("detailBody").addEventListener("click", function (e) {
+    var hit = e.target.closest("[data-checked]");
+    if (!hit) return;
+    var b = findBook(hit.getAttribute("data-checked"));
+    if (!b) return;
+    // The server stamps the date; the browser only asks for it.
+    b.valueChecked = true;
+    b.rev = (b.rev || 0) + 1;
+    persistLocal();
+    queue("save", b.client_id);
+    showToast("\u2713 Value marked as checked");
+  });
+
   el("detailDeleteBtn").onclick = function () { deleteBook(el("detailModal").getAttribute("data-id")); };
 
   el("loginBtn").onclick = doLogin;
@@ -2117,6 +2197,7 @@
   window.addEventListener("beforeunload", function () { if (camStream) stopCamera(); });
 
   // Exposed so the geometry can be exercised directly by tests.
+  window.__ctComps = { compsUrl: compsUrl, daysSince: daysSince, staleValues: staleValues, compsRow: compsRow };
   window.__ctChart = { characterBars: characterBars, characterBarsHtml: characterBarsHtml };
   window.__ctTest = { solveHomography: solveHomography, orderCorners: orderCorners,
                       quadAspect: quadAspect, growQuad: growQuad, rectify: rectify };

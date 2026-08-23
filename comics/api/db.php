@@ -30,6 +30,7 @@ function db() {
             key_info TEXT NULL,
             favorite TINYINT(1) NOT NULL DEFAULT 0,
             grail TINYINT(1) NOT NULL DEFAULT 0,
+            value_checked DATETIME NULL,
             cover_file VARCHAR(160) NOT NULL DEFAULT "",
             thumb_file VARCHAR(160) NOT NULL DEFAULT "",
             created_at DATETIME NOT NULL,
@@ -46,6 +47,7 @@ function db() {
             'key_info' => 'ADD COLUMN key_info TEXT NULL',
             'favorite' => 'ADD COLUMN favorite TINYINT(1) NOT NULL DEFAULT 0',
             'grail'    => 'ADD COLUMN grail TINYINT(1) NOT NULL DEFAULT 0',
+            'value_checked' => 'ADD COLUMN value_checked DATETIME NULL',
         ];
         foreach ($added as $column => $ddl) {
             try {

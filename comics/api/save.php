@@ -32,7 +32,7 @@ if ($fields['character_name'] === '' && $fields['series'] === '' && $fields['iss
     json_response(['error' => 'Add at least a character, a book name or an issue number.'], 400);
 }
 
-$existing = db()->prepare('SELECT cover_file, thumb_file FROM comics WHERE client_id = :cid');
+$existing = db()->prepare('SELECT cover_file, thumb_file, value FROM comics WHERE client_id = :cid');
 $existing->execute(['cid' => $clientId]);
 $existing = $existing->fetch();
 
@@ -59,10 +59,18 @@ if (!empty($in['remove_cover'])) {
     $thumbFile = '';
 }
 
+// When the value was last verified against real sales. The server stamps it
+// rather than trusting a browser clock: on an explicit "checked" tap, or
+// whenever the value itself changes.
+$oldValue = $existing && $existing['value'] !== null ? (string) (float) $existing['value'] : '';
+$newValue = $fields['value'] === null ? '' : (string) (float) $fields['value'];
+$stampChecked = !empty($in['value_checked']) || ($newValue !== '' && $newValue !== $oldValue);
+
 $params = $fields;
 $params['cid'] = $clientId;
 $params['cover_file'] = $coverFile;
 $params['thumb_file'] = $thumbFile;
+$params['stamp'] = $stampChecked ? 1 : 0;
 
 if ($existing) {
     $sql = 'UPDATE comics SET
@@ -71,17 +79,18 @@ if ($existing) {
                 year = :year, grade = :grade, value = :value, paid = :paid,
                 acquired = :acquired, tags = :tags, notes = :notes, key_info = :key_info,
                 favorite = :favorite, grail = :grail,
+                value_checked = CASE WHEN :stamp = 1 THEN NOW() ELSE value_checked END,
                 cover_file = :cover_file, thumb_file = :thumb_file, updated_at = NOW()
             WHERE client_id = :cid';
 } else {
     $sql = 'INSERT INTO comics
                 (client_id, character_name, series, issue, issue_sort, variant, publisher,
                  year, grade, value, paid, acquired, tags, notes, key_info, favorite, grail,
-                 cover_file, thumb_file, created_at, updated_at)
+                 value_checked, cover_file, thumb_file, created_at, updated_at)
             VALUES
                 (:cid, :character_name, :series, :issue, :issue_sort, :variant, :publisher,
                  :year, :grade, :value, :paid, :acquired, :tags, :notes, :key_info, :favorite, :grail,
-                 :cover_file, :thumb_file,
+                 CASE WHEN :stamp = 1 THEN NOW() ELSE NULL END, :cover_file, :thumb_file,
                  NOW(), NOW())';
 }
 
@@ -95,9 +104,9 @@ try {
 // Only bin the old images once the row actually points at the new ones.
 foreach ($replaced as $old) delete_cover_image($old);
 
-$row = db()->prepare('SELECT created_at, updated_at FROM comics WHERE client_id = :cid');
+$row = db()->prepare('SELECT created_at, updated_at, value_checked FROM comics WHERE client_id = :cid');
 $row->execute(['cid' => $clientId]);
-$row = $row->fetch() ?: ['created_at' => null, 'updated_at' => null];
+$row = $row->fetch() ?: ['created_at' => null, 'updated_at' => null, 'value_checked' => null];
 
 json_response([
     'ok' => true,
@@ -107,5 +116,6 @@ json_response([
         'thumb' => $thumbFile,
         'created_at' => $row['created_at'],
         'updated_at' => $row['updated_at'],
+        'value_checked' => $row['value_checked'] ?: '',
     ],
 ]);

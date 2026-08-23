@@ -66,6 +66,7 @@ login. Nothing in this folder touches the Car Tracker app at the repo root.
 | `uploads/covers/` | Where cover JPEGs are written. `.htaccess` above it blocks script execution and listing. |
 | `fonts/OFL-*.txt` | Licence texts for the two embedded webfonts. Reference only — nothing to upload. |
 | `collection/chart.php` | The main-characters bars, server-rendered — the public twin of the app's `characterBars()`. |
+| `tools/comps-test.js` | The comps button: the eBay URL it builds, the checked stamp round trip, all five wordings. |
 | `tools/chart-test.js` | The bars in the app: the cap, the ordering, the scaling, row-click filtering. |
 | `tools/chart-parity.js` + `.php` | Renders eight distributions through both implementations and diffs the markup. |
 | `tools/overlap-test.js` | Sweeps the home page across 19 widths: element collisions, heading line-box overlap, overflow, sideways scroll. |
@@ -246,6 +247,44 @@ button and the settings toggle stay hidden, and typing the fields in by hand wor
   (`{view, sort}`); omit it for a plain block. On the grouped views the single count block is
   deliberately not a link — it describes the view you are already on. Each clickable block carries a
   faint ↗ because there is no hover state on a phone and they would otherwise look inert.
+
+### Checking what a book is worth (the comps button)
+
+A "Recent sales on eBay" button on the book detail, plus a `recent sales` link beside the Value field in
+the edit form. Both open eBay's **sold and completed** search in a new tab, pre-filled from the book:
+
+    https://www.ebay.com/sch/i.html?_nkw=<series> #<issue>&LH_Sold=1&LH_Complete=1&_sop=13
+
+`LH_Sold=1` + `LH_Complete=1` is the sold filter; `_sop=13` sorts newest-ended first. `target="_blank"`
+with `rel="noopener noreferrer"`.
+
+**Why a link and not a lookup.** The API that returned sold prices (`findCompletedItems`) was restricted
+in 2020 and shut down with the rest of the Finding API in **February 2025**. Sold data now lives only in
+the **Marketplace Insights API**, a Limited Release that eBay's own docs say is "not open to new users".
+The Browse API is open but returns **active listings only** — asking prices, which for comics run well
+above sale prices. And since **22 July 2026** eBay redirects signed-out visitors away from sold
+searches, which kills scrapers but leaves a signed-in human browser working fine. So the honest build
+is: send the owner to the comps, let them read real sales, and have them type the number. It also costs
+nothing — no API key, no credits, no terms-of-service exposure.
+
+**Deliberately not done:** asking Claude to estimate a price from its own knowledge. Its price knowledge
+is frozen at training time and it would return a confident, specific, wrong figure for something the
+owner may insure or sell against. Reading a cover is fair (the answer is printed on the page); guessing
+a market price is not.
+
+**The checked date.** `value_checked` is a `DATETIME` on `comics`, stamped **by the server** — never by
+the browser, whose clock cannot be trusted — in two cases: an explicit "Mark value checked" tap (the
+client sends `value_checked: 1`, a request, not a timestamp), or whenever the value itself changes on
+save. `save.php` returns the stamp so the client can take it back, and the request flag is cleared once
+the save lands, so a later sync cannot re-stamp it.
+
+Anything older than `STALE_DAYS` (180) counts as stale: the note under the button turns red, and the
+Value block on the dashboard says "n values worth re-checking" instead of "most valuable first". The
+public shelf shows none of this — money stays behind the login.
+
+If the Marketplace Insights application is ever approved, the natural next step is a server-side
+`api/comps.php` that returns a median and range with the sample size and date window — never a single
+figure — and caches per book for a week.
 
 ### Main characters (the little bar chart)
 
