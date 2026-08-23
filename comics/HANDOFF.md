@@ -1,11 +1,12 @@
-# Comic Tracker — Project Handoff
+# LongBox — Project Handoff
 
 A personal **comic book collection tracker**. Photograph a cover with your phone, type in the
 **character**, the **book name** and the **issue number**, and the app files it away — grouped by
 character and by book, with cover thumbnails, search, condition/value tracking, and missing-issue
 detection for runs you are collecting.
 
-It is a **separate website** from Car Tracker: its own folder here, its own Hostinger site, its own
+The app is called **LongBox** (it was "Comic Tracker" until the branding landed). It is a
+**separate website** from Car Tracker: its own folder here, its own Hostinger site, its own
 login. Nothing in this folder touches the Car Tracker app at the repo root.
 
 ---
@@ -236,6 +237,27 @@ button and the settings toggle stay hidden, and typing the fields in by hand wor
   deliberately not a link — it describes the view you are already on. Each clickable block carries a
   faint ↗ because there is no hover state on a phone and they would otherwise look inert.
 
+### Branding
+
+The name is **LongBox**; the owner supplied the artwork (a horizontal `LONGBOX / MY COMICS` wordmark
+and a matching square app icon, both with real alpha). Both are embedded as base64 WebP in
+`index.html`, like the fonts — the app still makes no third-party requests.
+
+* **Top bar** — the horizontal wordmark (`.brand-mark`), 30px tall, 26px under 860px, 22px under
+  360px. The square icon was tried here first and turned to mush at 28px, because its `MY COMICS`
+  band is only ~8% of its height; the wordmark stays legible small.
+* **Login card** — the same wordmark at up to 250px wide, inside the `h1` (`.login-wordmark`), with
+  the `Ironmane Labs` eyebrow kept underneath.
+* **Icon** — the square badge, 180px, serves as both `rel="icon"` and `apple-touch-icon`, so a
+  home-screen shortcut gets the app icon.
+* The old Ironmane Labs griffin PNG is gone from this app, along with the `Comic Tracker.` text
+  wordmark.
+
+Two internal names deliberately still say "comictracker": the `localStorage` key
+`comicTracker.v1` (renaming it would orphan any queued offline edits) and the session cookie
+`comictracker_sid` in `api/db.php` (renaming it would log the owner out). They are invisible to the
+user; leave them unless there is a reason to migrate.
+
 ### Fitting on a phone
 
 The top bar has to hold the wordmark, the sync status, **+ Add** and the settings gear. It used to lay
@@ -265,7 +287,7 @@ value · totals for books, characters, book titles and collection value · edit 
 Hosting is the same account as Car Tracker (Business plan, PHP 8.3, MySQL/PDO, account `u526894368`).
 That account already hosts two unrelated sites — **Turnkey General Contractor**
 (`darkgray-seahorse-474215.hostingersite.com`) and **Car Tracker**
-(`mediumvioletred-alligator-245269.hostingersite.com`). **Give Comic Tracker its own third website**
+(`mediumvioletred-alligator-245269.hostingersite.com`). **Give LongBox its own third website**
 so nothing overlaps.
 
 1. ~~**Create the website.**~~ **Done** — `darkslategray-mosquito-683437.hostingersite.com`.
