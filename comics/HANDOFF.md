@@ -225,6 +225,17 @@ button and the settings toggle stay hidden, and typing the fields in by hand wor
   character and a "Batman" title) do not open each other when you switch views — there is a test for
   exactly that.
 
+### Search and the dashboard blocks
+
+- The search sits **above the heading**, directly under the top bar, as a red-outlined pill with a clear
+  button — it is the control used on every visit, so it comes before anything else. The character filter
+  and the sort order stay below the blocks: they are refinements, not the main action.
+- The four dashboard blocks are **navigation**: Books → Library, Characters → Characters,
+  Book titles → Books, Value → Library sorted by value. `stat()` takes a `go` argument
+  (`{view, sort}`); omit it for a plain block. On the grouped views the single count block is
+  deliberately not a link — it describes the view you are already on. Each clickable block carries a
+  faint ↗ because there is no hover state on a phone and they would otherwise look inert.
+
 ### Fitting on a phone
 
 The top bar has to hold the wordmark, the sync status, **+ Add** and the settings gear. It used to lay

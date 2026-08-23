@@ -99,6 +99,13 @@
   .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
   .stats.stats--one { grid-template-columns: minmax(220px, 320px); }
   .stat { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px 16px; }
+  .stat--go { font: inherit; color: inherit; text-align: left; width: 100%; cursor: pointer; transition: transform .12s, border-color .12s; }
+  .stat--go { position: relative; }
+  .stat--go:hover { transform: translateY(-2px); border-color: var(--red); }
+  .stat-go { position: absolute; top: 14px; right: 15px; font-size: 13px; color: var(--red); opacity: .55; }
+  .stat--ink .stat-go, .stat--red .stat-go { color: #fff; opacity: .5; }
+  .stat--go:hover .stat-go { opacity: 1; }
+  .stat--go.stat--ink:hover, .stat--go.stat--red:hover { border-color: var(--ink); }
   .stat-title { font-size: 10.5px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .16em; }
   .stat-num { font-family: var(--display); font-size: 40px; letter-spacing: -.03em; line-height: 1; margin: 10px 0 6px; font-variant-numeric: tabular-nums; }
   .stat-sub { font-size: 12px; color: var(--muted); font-weight: 600; }
@@ -108,6 +115,16 @@
   .stat--red { background: var(--red); border-color: var(--red); color: #fff; }
   .stat--red .stat-title { color: rgba(255,255,255,.62); }
   .stat--red .stat-sub { color: rgba(255,255,255,.72); }
+
+  /* ---------- search ---------- */
+  .searchbar { display: flex; align-items: center; gap: 10px; margin-top: 18px; background: var(--card); border: 2px solid var(--red); border-radius: 999px; padding: 0 8px 0 18px; }
+  .searchbar:focus-within { box-shadow: 0 0 0 4px rgba(238,39,51,.14); }
+  .searchbar .mag { font-size: 14px; line-height: 1; flex: none; filter: grayscale(1) brightness(.5); }
+  .searchbar input { border: none; background: transparent; padding: 14px 0; font-size: 15px; border-radius: 0; }
+  .searchbar input:focus { outline: none; }
+  .searchbar input::placeholder { color: var(--muted); }
+  .search-clear { flex: none; width: 32px; height: 32px; border-radius: 50%; border: none; background: transparent; color: var(--muted); font-size: 20px; line-height: 1; cursor: pointer; }
+  .search-clear:hover { background: var(--panel); color: var(--red); }
 
   /* ---------- toolbar ---------- */
   .toolbar { display: flex; gap: 10px; align-items: center; margin: 22px 0 6px; flex-wrap: wrap; }
@@ -340,6 +357,12 @@
       </div>
     </div>
 
+    <div class="searchbar">
+      <span class="mag" aria-hidden="true">🔍</span>
+      <input id="search" placeholder="Search your collection" autocomplete="off" aria-label="Search your collection">
+      <button class="search-clear" id="searchClear" type="button" aria-label="Clear search" style="display:none">×</button>
+    </div>
+
     <div class="pagehead">
       <div>
         <h1>My Collection</h1>
@@ -350,7 +373,6 @@
     <div class="stats" id="stats"></div>
 
     <div class="toolbar">
-      <div class="search"><span class="mag">🔍</span><input id="search" placeholder="Search character, book, issue, publisher…" autocomplete="off"></div>
       <select id="filterChar" aria-label="Filter by character"></select>
       <select id="sort" aria-label="Sort">
         <option value="added">Newest added</option>
@@ -788,22 +810,38 @@
       el("stats").innerHTML = view === "characters"
         ? stat("Characters", Object.keys(chars).length, "in the collection", "ink")
         : stat("Book titles", Object.keys(series).length, "series or one-shots", "ink");
+      // No link on these: the block describes the view you are already looking at.
+
       return;
     }
     el("stats").className = "stats";
     el("stats").innerHTML =
       stat("Books", state.books.length,
         rejected ? plural(rejected, "book") + " not saved — open and re-save" :
-        pending ? plural(pending, "change") + " waiting to sync" : "in the collection", "ink") +
-      stat("Characters", Object.keys(chars).length, "tracked") +
-      stat("Book titles", Object.keys(series).length, "series or one-shots") +
-      stat("Value", value > 0 ? money(value) : "—", value > 0 ? "estimated total" : "add values to track this", "red");
+        pending ? plural(pending, "change") + " waiting to sync" : "in the collection",
+        "ink", { view: "library" }) +
+      stat("Characters", Object.keys(chars).length, "tracked", "", { view: "characters" }) +
+      stat("Book titles", Object.keys(series).length, "series or one-shots", "", { view: "series" }) +
+      stat("Value", value > 0 ? money(value) : "—",
+        value > 0 ? "most valuable first" : "add values to track this",
+        "red", { view: "library", sort: "value" });
   }
 
-  function stat(title, n, sub, variant) {
-    return '<div class="stat' + (variant ? " stat--" + variant : "") + '"><div class="stat-title">' + esc(title) + "</div>" +
+  /**
+   * A dashboard block. `go` makes it act like the nav: {view: "characters"} or
+   * {view: "library", sort: "value"}. Omit it for a plain, non-clickable block.
+   */
+  function stat(title, n, sub, variant, go) {
+    var tag = go ? "button" : "div";
+    var attrs = ' class="stat' + (variant ? " stat--" + variant : "") + (go ? " stat--go" : "") + '"';
+    if (go) {
+      attrs += ' data-go-view="' + esc(go.view) + '"';
+      if (go.sort) attrs += ' data-go-sort="' + esc(go.sort) + '"';
+    }
+    return "<" + tag + attrs + '>' + (go ? '<span class="stat-go">\u2197</span>' : "") +
+      '<div class="stat-title">' + esc(title) + "</div>" +
       '<div class="stat-num">' + esc(String(n)) + "</div>" +
-      '<div class="stat-sub">' + esc(sub) + "</div></div>";
+      '<div class="stat-sub">' + esc(sub) + "</div></" + tag + ">";
   }
 
   function renderFilters() {
@@ -1714,13 +1752,34 @@
     if (e.target.closest("#emptyAddBtn")) { openBookModal(null); return; }
     if (e.target.closest("#clearFiltersBtn")) {
       el("search").value = "";
+      el("searchClear").style.display = "none";
       state.settings.filterChar = "";
       persistLocal();
       render();
     }
   });
 
-  el("search").addEventListener("input", function () { render(); });
+  el("stats").addEventListener("click", function (e) {
+    var block = e.target.closest("[data-go-view]");
+    if (!block) return;
+    state.settings.view = block.getAttribute("data-go-view");
+    var sort = block.getAttribute("data-go-sort");
+    if (sort) state.settings.sort = sort;
+    persistLocal();
+    render();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+
+  el("search").addEventListener("input", function () {
+    el("searchClear").style.display = this.value ? "" : "none";
+    render();
+  });
+  el("searchClear").onclick = function () {
+    el("search").value = "";
+    this.style.display = "none";
+    render();
+    el("search").focus();
+  };
   el("filterChar").addEventListener("change", function () { state.settings.filterChar = this.value; persistLocal(); render(); });
   el("sort").addEventListener("change", function () { state.settings.sort = this.value; persistLocal(); render(); });
 
@@ -1734,6 +1793,8 @@
       el("stats").innerHTML = view === "characters"
         ? stat("Characters", Object.keys(chars).length, "in the collection", "ink")
         : stat("Book titles", Object.keys(series).length, "series or one-shots", "ink");
+      // No link on these: the block describes the view you are already looking at.
+
       return;
     }
     el("stats").className = "stats";
