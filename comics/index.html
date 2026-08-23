@@ -97,6 +97,7 @@
 
   /* ---------- stats ---------- */
   .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .stats.stats--one { grid-template-columns: minmax(220px, 320px); }
   .stat { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px 16px; }
   .stat-title { font-size: 10.5px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .16em; }
   .stat-num { font-family: var(--display); font-size: 40px; letter-spacing: -.03em; line-height: 1; margin: 10px 0 6px; font-variant-numeric: tabular-nums; }
@@ -123,6 +124,10 @@
   /* ---------- groups ---------- */
   .group { margin-top: 22px; }
   .group-head { display: flex; align-items: center; gap: 10px; background: var(--red); color: #fff; padding: 12px 16px; border-radius: var(--radius-sm); margin-bottom: 14px; flex-wrap: wrap; }
+  .group-head.open-head { width: 100%; border: none; font: inherit; text-align: left; cursor: pointer; margin-bottom: 8px; }
+  .group-head.open-head.is-open { margin-bottom: 14px; }
+  .group-head.open-head:hover { background: var(--red-dark); }
+  .group-head .caret { font-size: 13px; opacity: .85; width: 12px; flex: none; }
   .group-head h2 { font-size: 20px; }
   .group-head .count { color: rgba(255,255,255,.75); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em; }
   .chip { display: inline-flex; align-items: center; gap: 6px; background: #fff; color: var(--ink); border-radius: 999px; padding: 5px 11px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .09em; }
@@ -521,6 +526,7 @@
   var draftCrop = null;     // {x,y,w,h} as fractions of the photo, or null
   var draftQuad = null;     // four corners of the book, as fractions, or null
   var imgTypeCache = null;
+  var expandedGroups = {};   // which character rows are open, for this visit
 
   // ---------- persistence ----------
   function load() {
@@ -528,10 +534,12 @@
     try {
       var raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
       if (!raw || !Array.isArray(raw.books)) return fallback;
+      var settings = Object.assign({}, fallback.settings, raw.settings || {});
+      settings.view = "library";   // always open on the shelf, whatever you were last looking at
       return {
         books: raw.books.map(normalizeBook),
         outbox: Array.isArray(raw.outbox) ? raw.outbox : [],
-        settings: Object.assign({}, fallback.settings, raw.settings || {})
+        settings: settings
       };
     } catch (e) { return fallback; }
   }
@@ -627,8 +635,8 @@
     var wrap = el("viewWrap");
     if (!state.books.length) { wrap.innerHTML = emptyState(true); return; }
     if (!books.length) { wrap.innerHTML = emptyState(false); return; }
-    if (view === "characters") wrap.innerHTML = renderGrouped(books, "character", "Unfiled");
-    else if (view === "series") wrap.innerHTML = renderGrouped(books, "series", "Loose issues");
+    if (view === "characters") wrap.innerHTML = renderGrouped(books, "character", "Unfiled", true);
+    else if (view === "series") wrap.innerHTML = renderGrouped(books, "series", "Loose issues", false);
     else wrap.innerHTML = '<div class="group"><div class="covers">' + books.map(card).join("") + "</div></div>";
   }
 
@@ -657,7 +665,7 @@
       '<span class="s">' + esc(sub) + "</span></span></button>";
   }
 
-  function renderGrouped(books, key, blankLabel) {
+  function renderGrouped(books, key, blankLabel, collapsible) {
     var groups = {};
     books.forEach(function (b) {
       var name = (b[key] || "").trim() || blankLabel;
@@ -667,6 +675,9 @@
       var d = groups[b].length - groups[a].length;
       return d !== 0 ? d : a.localeCompare(b);
     });
+    // While searching or filtering, open everything — otherwise the matches
+    // would be hidden inside collapsed rows and the search would look broken.
+    var forceOpen = !!(el("search").value.trim() || state.settings.filterChar);
     return names.map(function (name) {
       var list = groups[name].slice().sort(function (a, b) {
         var an = issueNum(a.issue), bn = issueNum(b.issue);
@@ -678,8 +689,18 @@
       var chips = '<span class="count">' + plural(list.length, "book") + "</span>";
       if (key === "series") chips += runChips(list);
       else chips += charChips(list);
-      return '<div class="group"><div class="group-head"><h2>' + esc(name) + "</h2>" + chips + "</div>" +
-        '<div class="covers">' + list.map(card).join("") + "</div></div>";
+
+      if (!collapsible) {
+        return '<div class="group"><div class="group-head"><h2>' + esc(name) + "</h2>" + chips + "</div>" +
+          '<div class="covers">' + list.map(card).join("") + "</div></div>";
+      }
+      var open = forceOpen || !!expandedGroups[name];
+      return '<div class="group">' +
+        '<button class="group-head open-head' + (open ? " is-open" : "") + '" data-group="' + esc(name) + '">' +
+        '<span class="caret">' + (open ? "▾" : "▸") + "</span>" +
+        "<h2>" + esc(name) + "</h2>" + chips + "</button>" +
+        (open ? '<div class="covers">' + list.map(card).join("") + "</div>" : "") +
+        "</div>";
     }).join("");
   }
 
@@ -735,6 +756,7 @@
 
   function renderStats() {
     var chars = {}, series = {}, value = 0;
+    var view = state.settings.view;
     state.books.forEach(function (b) {
       if (b.character) chars[b.character.trim().toLowerCase()] = 1;
       if (b.series) series[b.series.trim().toLowerCase()] = 1;
@@ -742,6 +764,13 @@
     });
     var pending = state.outbox.length;
     var rejected = state.books.filter(function (b) { return b.rejected; }).length;
+    if (view === "characters") {
+      // Browsing by character: the shelf totals are noise here.
+      el("stats").className = "stats stats--one";
+      el("stats").innerHTML = stat("Characters", Object.keys(chars).length, "in the collection", "ink");
+      return;
+    }
+    el("stats").className = "stats";
     el("stats").innerHTML =
       stat("Books", state.books.length,
         rejected ? plural(rejected, "book") + " not saved — open and re-save" :
@@ -1654,6 +1683,14 @@
   el("viewWrap").addEventListener("click", function (e) {
     var c = e.target.closest("[data-book]");
     if (c) { openDetail(c.getAttribute("data-book")); return; }
+    var head = e.target.closest("[data-group]");
+    if (head) {
+      var name = head.getAttribute("data-group");
+      if (expandedGroups[name]) delete expandedGroups[name];
+      else expandedGroups[name] = true;
+      render();
+      return;
+    }
     if (e.target.closest("#emptyAddBtn")) { openBookModal(null); return; }
     if (e.target.closest("#clearFiltersBtn")) {
       el("search").value = "";
@@ -1671,6 +1708,13 @@
   el("settingsBtn").onclick = function () {
     var pending = state.outbox.length;
     var rejected = state.books.filter(function (b) { return b.rejected; }).length;
+    if (view === "characters") {
+      // Browsing by character: the shelf totals are noise here.
+      el("stats").className = "stats stats--one";
+      el("stats").innerHTML = stat("Characters", Object.keys(chars).length, "in the collection", "ink");
+      return;
+    }
+    el("stats").className = "stats";
     el("settingsNote").textContent = plural(state.books.length, "book") + " in the collection." +
       (pending ? " " + plural(pending, "change") + " still waiting to sync." : lastSynced ? " Last synced " + lastSynced.toLocaleTimeString() + "." : "");
     openModal("settingsModal");

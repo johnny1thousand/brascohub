@@ -208,6 +208,19 @@ button and the settings toggle stay hidden, and typing the fields in by hand wor
   schema — it checks every keyword against the documented subset.
 - Editing `config.php` on the server can take a few seconds to take effect — opcache is on.
 
+### Views
+
+- **Library** is where the app always opens, whatever view you were last on — the stored view preference
+  is deliberately overridden to `library` in `load()`.
+- **Characters** is a collapsed list: one red row per character with its counts, and the covers only
+  appear for rows you open. Open state lives in `expandedGroups` for the visit and is not persisted.
+  Searching or filtering force-opens every row, or the matches would be hidden inside collapsed rows and
+  the search would look broken. The four-card dashboard is replaced here by a single Characters count —
+  shelf totals are noise when browsing by character.
+- **Books** keeps the full dashboard and shows every cover under each title, because seeing the run and
+  its missing issues at a glance is the point of that view. If it should collapse like Characters, the
+  renderer already takes a `collapsible` flag — pass `true`.
+
 ### Features
 Photograph a cover in-page (with flip-camera and a file-picker fallback) · character / book name /
 issue number / condition, plus optional publisher, year, variant, value, paid, date acquired, tags,
