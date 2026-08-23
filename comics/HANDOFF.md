@@ -116,7 +116,10 @@ thin red frame around the whole app, heavy black display type, red bands for sec
   retried save after a dropped connection can never create a duplicate.
 - **Table `comics`** (created automatically on first API call):
   `id, client_id, character_name, series, issue, issue_sort, variant, publisher, year, grade, value,
-  paid, acquired, tags, notes, cover_file, thumb_file, created_at, updated_at`.
+  paid, acquired, tags, notes, key_info, cover_file, thumb_file, created_at, updated_at`.
+  Columns added after the first release are applied by a small idempotent migration at the top of
+  `db()` (`SHOW COLUMNS` then `ALTER TABLE`, wrapped so a failure can never take the app down) —
+  that is how `key_info` reached the live database, which already had rows in it.
   `issue_sort` is the numeric part of `issue`, so `#12A` and `Annual 4` still sort sensibly.
 - **Offline behaviour:** `localStorage` key `comicTracker.v1` caches the library, the pending-change
   queue (outbox), and view preferences. Add or edit a book with no signal and it is saved on the

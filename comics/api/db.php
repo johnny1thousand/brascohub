@@ -27,6 +27,7 @@ function db() {
             acquired DATE NULL,
             tags VARCHAR(255) NOT NULL DEFAULT "",
             notes TEXT NULL,
+            key_info TEXT NULL,
             cover_file VARCHAR(160) NOT NULL DEFAULT "",
             thumb_file VARCHAR(160) NOT NULL DEFAULT "",
             created_at DATETIME NOT NULL,
@@ -35,6 +36,21 @@ function db() {
             KEY idx_character (character_name),
             KEY idx_series (series)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+
+        // Columns added after the first release. Safe to run on every request:
+        // each one is only added when missing, and a failure here must never
+        // take the app down.
+        foreach (['key_info' => 'ADD COLUMN key_info TEXT NULL'] as $column => $ddl) {
+            try {
+                $has = $pdo->prepare('SHOW COLUMNS FROM comics LIKE ?');
+                $has->execute([$column]);
+                if (!$has->fetch()) {
+                    $pdo->exec('ALTER TABLE comics ' . $ddl);
+                }
+            } catch (PDOException $e) {
+                // Leave it alone — the app still works without the new column.
+            }
+        }
     }
     return $pdo;
 }

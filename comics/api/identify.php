@@ -41,6 +41,57 @@ if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp', 'image/gif'], tru
     json_response(['error' => 'Unsupported image format.'], 400);
 }
 
+$size = @getimagesizefromstring($bytes);
+$imgW = $size ? (int) $size[0] : 0;
+$imgH = $size ? (int) $size[1] : 0;
+if ($imgW < 1 || $imgH < 1) {
+    json_response(['error' => 'Could not read the size of that image.'], 400);
+}
+
+/**
+ * Visual tokens an image costs: one per 28x28 patch.
+ * https://platform.claude.com/docs/en/build-with-claude/vision-coordinates
+ */
+function count_image_tokens($w, $h) {
+    return intdiv($w + 27, 28) * intdiv($h + 27, 28);
+}
+
+/** The size Claude resizes an image to before padding — coordinates come back in THIS space. */
+function resized_size($width, $height, $maxEdge, $maxTokens) {
+    $fits = function ($w, $h) use ($maxEdge, $maxTokens) {
+        return intdiv($w + 27, 28) * 28 <= $maxEdge
+            && intdiv($h + 27, 28) * 28 <= $maxEdge
+            && count_image_tokens($w, $h) <= $maxTokens;
+    };
+    if ($fits($width, $height)) {
+        return [$width, $height];
+    }
+    if ($height > $width) {
+        list($rh, $rw) = resized_size($height, $width, $maxEdge, $maxTokens);
+        return [$rw, $rh];
+    }
+    $aspect = $width / $height;
+    $lo = 1;
+    $hi = $width;
+    while ($lo + 1 < $hi) {
+        $mid = intdiv($lo + $hi, 2);
+        $short = max((int) round($mid / $aspect, 0, PHP_ROUND_HALF_EVEN), 1);
+        if ($fits($mid, $short)) { $lo = $mid; } else { $hi = $mid; }
+    }
+    return [$lo, max((int) round($lo / $aspect, 0, PHP_ROUND_HALF_EVEN), 1)];
+}
+
+/** High-resolution tier is Claude 4.7 and later; everything else is standard. */
+function model_image_limits($model) {
+    $highRes = ['opus-5', 'opus-4-7', 'opus-4-8', 'sonnet-5', 'fable-5', 'mythos-5'];
+    foreach ($highRes as $needle) {
+        if (strpos($model, $needle) !== false) {
+            return [2576, 4784];
+        }
+    }
+    return [1568, 1568];
+}
+
 $instructions =
     "You identify a comic book from a photo of its cover, for a collector's catalogue.\n\n" .
     "Rules:\n" .
@@ -53,8 +104,15 @@ $instructions =
     "Otherwise, if you recognise the issue and are confident of its original publication year, use that " .
     "and set year_source to \"known\". If you are unsure, leave year empty and year_source empty.\n" .
     "- variant: only if the cover itself says so (2nd printing, a named variant cover, facsimile).\n" .
+    "- key_info: why this issue matters, if it does — a first appearance, a death, a famous " .
+    "story arc, a milestone number. One or two short sentences, no hype. Empty if it is an " .
+    "ordinary issue or you are not sure.\n" .
     "- confidence: how sure you are of series and issue together.\n" .
-    "- note: one short sentence for anything the collector should double-check, or empty.\n\n" .
+    "- note: one short sentence for anything the collector should double-check, or empty.\n" .
+    "- cover_box: the comic book itself within the photo, as [x1, y1, x2, y2] in pixel " .
+    "coordinates — top-left and bottom-right corners of the book's edges, excluding the table, " .
+    "hand, sleeve or background around it. The image is " . $imgW . " pixels wide and " . $imgH .
+    " pixels tall. If the book already fills the frame, return [0, 0, " . $imgW . ", " . $imgH . "].\n\n" .
     "Never invent a value. An empty string is always better than a guess.";
 
 $schema = [
@@ -67,10 +125,18 @@ $schema = [
         'year_source' => ['type' => 'string', 'enum' => ['printed', 'known', '']],
         'publisher'   => ['type' => 'string'],
         'variant'     => ['type' => 'string'],
+        'key_info'    => ['type' => 'string'],
         'confidence'  => ['type' => 'string', 'enum' => ['high', 'medium', 'low']],
         'note'        => ['type' => 'string'],
+        'cover_box'   => [
+            'type' => 'array',
+            'description' => 'Pixel coordinates of the book in the photo: [x1, y1, x2, y2].',
+            'items' => ['type' => 'number'],
+            'minItems' => 4,
+            'maxItems' => 4,
+        ],
     ],
-    'required' => ['character', 'series', 'issue', 'year', 'year_source', 'publisher', 'variant', 'confidence', 'note'],
+    'required' => ['character', 'series', 'issue', 'year', 'year_source', 'publisher', 'variant', 'key_info', 'confidence', 'note', 'cover_box'],
     'additionalProperties' => false,
 ];
 
@@ -151,16 +217,43 @@ $out = [];
 foreach (['character', 'series', 'issue', 'year', 'year_source', 'publisher', 'variant', 'confidence', 'note'] as $k) {
     $out[$k] = clean_text($fields[$k] ?? '', 200);
 }
+$out['key_info'] = clean_text($fields['key_info'] ?? '', 1000);
 // A year is only useful if it is plausible.
 if ($out['year'] !== '' && clean_year($out['year']) === null) {
     $out['year'] = '';
     $out['year_source'] = '';
 }
 
+// Claude's coordinates are in the space of the image AFTER its own resize, so
+// convert them to fractions of the image and let the browser apply them to
+// whatever copy of the photo it holds.
+$crop = null;
+$box = $fields['cover_box'] ?? null;
+if (is_array($box) && count($box) === 4) {
+    list($maxEdge, $maxTokens) = model_image_limits((string) ($body['model'] ?? ai_model()));
+    list($seenW, $seenH) = resized_size($imgW, $imgH, $maxEdge, $maxTokens);
+    $x1 = min(max((float) $box[0], 0), $seenW) / $seenW;
+    $y1 = min(max((float) $box[1], 0), $seenH) / $seenH;
+    $x2 = min(max((float) $box[2], 0), $seenW) / $seenW;
+    $y2 = min(max((float) $box[3], 0), $seenH) / $seenH;
+    if ($x2 < $x1) { $t = $x1; $x1 = $x2; $x2 = $t; }
+    if ($y2 < $y1) { $t = $y1; $y1 = $y2; $y2 = $t; }
+    // Ignore a box that is a sliver or effectively the whole frame already.
+    if ($x2 - $x1 > 0.15 && $y2 - $y1 > 0.15 && ($x2 - $x1) * ($y2 - $y1) < 0.97) {
+        $crop = [
+            'x' => round($x1, 4),
+            'y' => round($y1, 4),
+            'w' => round($x2 - $x1, 4),
+            'h' => round($y2 - $y1, 4),
+        ];
+    }
+}
+
 $usage = $body['usage'] ?? [];
 json_response([
     'ok' => true,
     'fields' => $out,
+    'crop' => $crop,
     'model' => $body['model'] ?? ai_model(),
     'usage' => [
         'input_tokens' => (int) ($usage['input_tokens'] ?? 0),

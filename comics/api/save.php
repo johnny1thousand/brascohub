@@ -18,6 +18,7 @@ $fields = [
     'grade'          => clean_text($in['grade'] ?? '', 40),
     'tags'           => clean_text($in['tags'] ?? '', 255),
     'notes'          => clean_text($in['notes'] ?? '', 4000),
+    'key_info'       => clean_text($in['key_info'] ?? '', 1000),
     'year'           => clean_year($in['year'] ?? null),
     'value'          => clean_money($in['value'] ?? null),
     'paid'           => clean_money($in['paid'] ?? null),
@@ -66,17 +67,17 @@ if ($existing) {
                 character_name = :character_name, series = :series, issue = :issue,
                 issue_sort = :issue_sort, variant = :variant, publisher = :publisher,
                 year = :year, grade = :grade, value = :value, paid = :paid,
-                acquired = :acquired, tags = :tags, notes = :notes,
+                acquired = :acquired, tags = :tags, notes = :notes, key_info = :key_info,
                 cover_file = :cover_file, thumb_file = :thumb_file, updated_at = NOW()
             WHERE client_id = :cid';
 } else {
     $sql = 'INSERT INTO comics
                 (client_id, character_name, series, issue, issue_sort, variant, publisher,
-                 year, grade, value, paid, acquired, tags, notes, cover_file, thumb_file,
+                 year, grade, value, paid, acquired, tags, notes, key_info, cover_file, thumb_file,
                  created_at, updated_at)
             VALUES
                 (:cid, :character_name, :series, :issue, :issue_sort, :variant, :publisher,
-                 :year, :grade, :value, :paid, :acquired, :tags, :notes, :cover_file, :thumb_file,
+                 :year, :grade, :value, :paid, :acquired, :tags, :notes, :key_info, :cover_file, :thumb_file,
                  NOW(), NOW())';
 }
 
