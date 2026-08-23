@@ -65,6 +65,9 @@ login. Nothing in this folder touches the Car Tracker app at the repo root.
 | `api/.htaccess` | Blocks direct web access to `config.php`; no directory listing. |
 | `uploads/covers/` | Where cover JPEGs are written. `.htaccess` above it blocks script execution and listing. |
 | `fonts/OFL-*.txt` | Licence texts for the two embedded webfonts. Reference only — nothing to upload. |
+| `collection/chart.php` | The character donut, server-rendered — the public twin of the app's `renderCharChart()`. |
+| `tools/chart-test.js` | The donut in the app: geometry, the cap, the legend arithmetic, slice-click filtering. |
+| `tools/chart-parity.js` + `.php` | Renders the same eight distributions through both implementations and diffs the SVG. |
 | `tools/overlap-test.js` | Sweeps the home page across 19 widths: element collisions, heading line-box overlap, overflow, sideways scroll. |
 | `tools/overlap-any.js` | The same checks, generically, against any path — `node tools/overlap-any.js /collection/`. |
 | `tools/settings-test.js` | Opens Settings from all three views and exercises export, sync-now and log-out. |
@@ -243,6 +246,42 @@ button and the settings toggle stay hidden, and typing the fields in by hand wor
   (`{view, sort}`); omit it for a plain block. On the grouped views the single count block is
   deliberately not a link — it describes the view you are already on. Each clickable block carries a
   faint ↗ because there is no hover state on a phone and they would otherwise look inert.
+
+### The character donut
+
+A donut of books per character, on the Library view of the app and on the public shelf. Both draw from
+the same recipe: **top four characters, then one "Other" slice**, biggest first, ties broken by name.
+Books with no character are excluded and counted in a footnote instead, so the chart stays about
+characters.
+
+**The palette is computed, not chosen.** Fills are `#EE2733` red, `#B33586` magenta, `#C98A00` gold,
+`#2C4C9B` blue, and `#4A443D` for Other. That set came out of the colour-vision validator in the
+`dataviz` skill, which measures perceptual distance under protanopia, deuteranopia and tritanopia. Two
+results worth keeping:
+
+* A brute-force sweep of all of sRGB found **no fifth hue** that stays distinguishable from those four
+  under protanopia — zero candidates. That is why the cap is four characters plus Other, and why adding
+  "just one more slice" is not a small change.
+* The worst adjacent pair in the shipped ring is **6.5 ΔE**, inside the 6–8 band the skill permits
+  *only* with secondary encoding. Hence the three encodings every slice carries: a ~2px gap of surface
+  between slices, a legend row naming it, and its share printed as a number. Never remove all three.
+
+Gold sits at 2.95:1 against white, just under the 3:1 contrast floor — permitted because the legend
+labels every slice in text.
+
+**The two implementations must agree.** The app draws it in JS, the public page in PHP, and
+`node tools/chart-parity.js` renders eight awkward distributions (a dead heat, a long tail, 99-to-1,
+ties, unfiled books) through both and asserts the SVG is **byte-identical** apart from the `data-char`
+attribute the app adds for click-to-filter. If you change one, run it and change the other.
+
+In the app a slice or a legend row filters the shelf to that character, and clicking it again clears
+the filter; "Other" is not a link. The `<svg>` sets `pointer-events: none` with `auto` on the slices, so
+clicks over the hole fall through instead of being swallowed. The hover dim is wrapped in
+`@media (hover: hover) and (pointer: fine)` — on a touch screen the hover state sticks after a tap and
+left the whole chart washed out.
+
+The chart hides itself below two characters (one character is what the stat block already says) and on
+the grouped views, where it would only repeat the grouping.
 
 ### Two layout traps the eye missed
 
