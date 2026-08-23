@@ -12,8 +12,13 @@ login. Nothing in this folder touches the Car Tracker app at the repo root.
 
 ## 1. Current status
 
-- **Live infrastructure is created** (2026-08-22, via the Hostinger API):
-  - Website: **`darkslategray-mosquito-683437.hostingersite.com`** — its own site on order `1009816343`,
+- **The app is LIVE** at **`comictracker.ironmanelabs.com`** (2026-08-22) — files deployed, first book
+  saved with its cover, cover reading wired up. Created via the Hostinger API:
+  - Website: created as `darkslategray-mosquito-683437.hostingersite.com`, since renamed by the owner to
+    **`comictracker.ironmanelabs.com`** (sits alongside `cartracker.ironmanelabs.com`; DNS for that
+    domain is managed outside Hostinger, so the owner pointed the record themselves). Note the API's
+    `domain` key follows the rename — calls using the old free subdomain return 404.
+    Its own site on order `1009816343`,
     root `/home/u526894368/domains/darkslategray-mosquito-683437.hostingersite.com/public_html`, PHP 8.3.30,
     PDO/mysqlnd and GD enabled, `post_max_size` 2048M.
   - Database: **`u526894368_comictracker`**, user `u526894368_comictracker`, assigned to that website,
@@ -21,7 +26,12 @@ login. Nothing in this folder touches the Car Tracker app at the repo root.
     Password was given to the owner directly — never stored in this repo.
   - Nothing is shared with Car Tracker: separate site, separate database and user, separate login,
     separate session cookie name.
-  - **Remaining:** copy the files into that site's `public_html`. Claude could not do this step because
+  - **Deploy gotcha, if you ever hand a zip to the owner again:** File Manager extracts into whatever
+    folder is currently open. The first attempt landed the whole update inside `public_html/uploads/`,
+    which moved `api/` out from under the app and briefly took the site down. Say "make sure you are in
+    `public_html`, not inside `uploads`, before extracting", and check the listing afterwards — file
+    sizes are enough to tell old from new without reading anything.
+  - **How the files got there:** copied by the owner via hPanel File Manager. Claude could not do this step because
     the session's network policy blocked `srv450-files.hstgr.io` (the file-upload host) and every other
     `*.hstgr.io` / site address — the Hostinger API tools reach the account through the MCP proxy, but
     plain HTTPS to the upload endpoint is refused with a gateway 403. A session whose environment allows
@@ -190,7 +200,7 @@ so nothing overlaps.
 5. **Check the covers folder is writable.** In File Manager, right-click `public_html/uploads/covers`
    → Permissions → `755` (Hostinger's default is usually fine). If it is wrong, the app will tell you
    in plain words the first time you save a book with a photo, and keep the book so nothing is lost.
-6. **Open the site over `https://`** and log in. Add a book, take a photo, confirm the cover appears.
+6. ~~**Open the site and log in.**~~ **Done** — first book saved, cover written to `uploads/covers/`.
 7. If the Hostinger placeholder page shows instead of the app, delete `default.php` from `public_html` —
    it ships with every new site and `index.html` should take precedence, but deleting it settles the
    question. (The API exposes no file-delete endpoint, so this one is a File Manager click.)
