@@ -237,6 +237,27 @@ button and the settings toggle stay hidden, and typing the fields in by hand wor
   deliberately not a link — it describes the view you are already on. Each clickable block carries a
   faint ↗ because there is no hover state on a phone and they would otherwise look inert.
 
+### Cover read resolution and cost
+
+Each read sends the uncropped photo at `IDENTIFY_MAX` (1400px long edge), which the API bills as
+**1,700 image tokens** for a portrait cover, plus ~500 tokens of prompt and ~200 back. On
+`claude-opus-5` that is roughly **$0.047 a book** — about $7 to catalogue 150 comics. `claude-sonnet-5`
+is ~5x cheaper and `claude-haiku-4-5` ~15x, both a one-line `AI_MODEL` change in `config.php`; the
+image-tier maths in `model_image_limits()` already handles all three (Haiku is standard tier, so a
+1400px photo is resized to 896x1343 / 1,536 tokens server-side, and the coordinate conversion follows
+it correctly).
+
+Settings has a **"Read covers at high resolution"** toggle (`settings.hiRes`, default on). Off sends
+`IDENTIFY_MAX_LOW` (1120px) — **1,080 image tokens, 36% less**. It exists so the two can be compared
+on the same book without a re-deploy; the accuracy half of that comparison needs a real API key and so
+can only be run on the live site. `node scratchpad/res-test.js` asserts the toggle changes what is
+actually uploaded (934x1400 -> 747x1120), that it survives a reload, and that no read is skipped.
+
+The crop and quad conversion is resolution- and model-agnostic: `identify.php` recomputes
+`resized_size()` from the dimensions of the image it actually received, so a box at 10-90% of what the
+model saw comes back as 0.10/0.80 fractions at every size and on every model. Verified for
+1400/1120 x opus-5/sonnet-5/haiku-4.5.
+
 ### Branding
 
 The name is **LongBox**; the owner supplied the artwork (a horizontal `LONGBOX / MY COMICS` wordmark
@@ -318,6 +339,14 @@ so nothing overlaps.
    question. (The API exposes no file-delete endpoint, so this one is a File Manager click.)
 
 ## 7. Notes for the next session
+
+**A caution, from a real bug.** Commit `f8503c0` pasted a block of `renderStats()` into the
+`settingsBtn` click handler by mistake. The handler threw `view is not defined` on every click, so the
+gear button did nothing at all — no export, no sync-now, no log out, no auto-read toggle — and it
+shipped that way through three more commits before a test that actually clicked the gear caught it.
+None of the view/nav suites touched it. When editing this file, run the suite that exercises the thing
+you did *not* change.
+
 
 - The owner is **non-technical** — explain steps plainly, give exact clicks, confirm before anything
   irreversible.
