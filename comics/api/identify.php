@@ -128,12 +128,13 @@ $schema = [
         'key_info'    => ['type' => 'string'],
         'confidence'  => ['type' => 'string', 'enum' => ['high', 'medium', 'low']],
         'note'        => ['type' => 'string'],
+        // Exactly four numbers, stated in the description rather than with
+        // minItems/maxItems: structured outputs only accepts minItems 0 or 1 and
+        // rejects maxItems outright. A reply with any other count is ignored below.
         'cover_box'   => [
             'type' => 'array',
-            'description' => 'Pixel coordinates of the book in the photo: [x1, y1, x2, y2].',
+            'description' => 'Exactly four numbers, the pixel coordinates of the book in the photo as [x1, y1, x2, y2] (top-left corner, then bottom-right corner).',
             'items' => ['type' => 'number'],
-            'minItems' => 4,
-            'maxItems' => 4,
         ],
     ],
     'required' => ['character', 'series', 'issue', 'year', 'year_source', 'publisher', 'variant', 'key_info', 'confidence', 'note', 'cover_box'],

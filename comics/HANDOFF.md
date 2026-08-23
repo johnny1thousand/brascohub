@@ -161,6 +161,12 @@ button and the settings toggle stay hidden, and typing the fields in by hand wor
 - **Not built yet:** a comics-database lookup (ComicVine or similar) to confirm the year, publisher and
   character list from series + issue rather than from the model's recollection, and barcode scanning for
   anything printed after the mid-80s. Both slot in alongside `identify.php` without touching the form.
+- **Schema constraints:** structured outputs accepts only a subset of JSON Schema — notably `minItems`
+  is limited to 0 or 1 and `maxItems` is rejected outright, which took down a shipped version of
+  `identify.php` (the array length for `cover_box` is stated in its `description` instead, and a reply
+  with the wrong count is ignored in PHP). A stand-in API cannot catch this class of bug because it
+  never validates the schema, so run `php tools/schema-lint.php api/identify.php` after touching the
+  schema — it checks every keyword against the documented subset.
 - Editing `config.php` on the server can take a few seconds to take effect — opcache is on.
 
 ### Features
