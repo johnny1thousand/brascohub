@@ -5,7 +5,7 @@ const { chromium } = require('playwright');
   const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
   const p = await b.newPage({ viewport: { width: 1340, height: 1000 }, acceptDownloads: true });
   const errs = []; p.on('pageerror', e => errs.push(e.message));
-  await p.goto('http://127.0.0.1:8899/', { waitUntil: 'networkidle' });
+  await p.goto('http://127.0.0.1:8899/app/', { waitUntil: 'networkidle' });
   await p.fill('#loginUser','Thanos'); await p.fill('#loginPass','Cra3653793!@#'); await p.click('#loginBtn');
   await p.waitForFunction(()=>!document.getElementById('loginScreen').classList.contains('open'));
   await p.waitForTimeout(600);

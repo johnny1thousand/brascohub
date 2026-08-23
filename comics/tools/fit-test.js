@@ -23,7 +23,7 @@ const CASES = [
   for (const [label, w, h] of CASES) {
     const ctx = await b.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
     const p = await ctx.newPage();
-    await p.goto('http://127.0.0.1:8899/', { waitUntil: 'networkidle' });
+    await p.goto('http://127.0.0.1:8899/app/', { waitUntil: 'networkidle' });
     await p.fill('#loginUser', 'Thanos'); await p.fill('#loginPass', 'Cra3653793!@#'); await p.click('#loginBtn');
     await p.waitForFunction(() => !document.getElementById('loginScreen').classList.contains('open'));
     await p.waitForTimeout(500);

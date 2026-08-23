@@ -7,7 +7,7 @@ const SP = '/tmp/claude-0/-home-user-brascohub/169f776e-18f4-5450-9fee-3326c3d10
   const p = await b.newPage({ viewport: { width: 1340, height: 1100 } });
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   const login = async () => {
-    await p.goto('http://127.0.0.1:8899/', { waitUntil: 'networkidle' });
+    await p.goto('http://127.0.0.1:8899/app/', { waitUntil: 'networkidle' });
     if (await p.isVisible('#loginScreen.open')) {
       await p.fill('#loginUser','Thanos'); await p.fill('#loginPass','Cra3653793!@#'); await p.click('#loginBtn');
       await p.waitForFunction(()=>!document.getElementById('loginScreen').classList.contains('open'));

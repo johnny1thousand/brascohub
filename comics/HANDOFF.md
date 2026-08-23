@@ -50,7 +50,10 @@ login. Nothing in this folder touches the Car Tracker app at the repo root.
 
 | File | What it is |
 |------|------------|
-| `index.html` | **The entire front end** — one self-contained file (inline HTML/CSS/JS), no build step. |
+| `index.html` | **The public home page** — static, self-contained apart from `assets/`. Makes no API calls of any kind. |
+| `app/index.html` | **The app** — one self-contained file (inline HTML/CSS/JS), no build step. Login-gated. |
+| `collection/index.php` | **The public shelf** — server-rendered, read-only, no login. One SELECT and nothing else. |
+| `assets/brand.css` + `.woff2` + `.webp` | Shared fonts, tokens and brand art for the two public pages. The app keeps its own embedded copies. |
 | `api/config.example.php` | Template for server config — copy to `api/config.php` on the server and fill in. **`config.php` is gitignored; never commit real credentials.** |
 | `api/db.php` | PDO connection, table bootstrap, session helpers, image validation/storage helpers. |
 | `api/login.php` | Verifies the shared username/password, starts the session, per-IP rate limiting. |
@@ -62,6 +65,8 @@ login. Nothing in this folder touches the Car Tracker app at the repo root.
 | `api/.htaccess` | Blocks direct web access to `config.php`; no directory listing. |
 | `uploads/covers/` | Where cover JPEGs are written. `.htaccess` above it blocks script execution and listing. |
 | `fonts/OFL-*.txt` | Licence texts for the two embedded webfonts. Reference only — nothing to upload. |
+| `tools/settings-test.js` | Opens Settings from all three views and exercises export, sync-now and log-out. |
+| `tools/flags-test.js` | Favorites and grails: toggles, shelf order, counts, the dashboard shortcuts, a server round trip. |
 | `tools/schema-lint.php` | Checks `identify.php`'s schema against the keyword subset structured outputs accepts. Run after any schema change. |
 | `tools/test-geometry.js`, `tools/geometry.js`, `tools/sync-geometry.sh` | Unit tests for the straightening maths, run against functions extracted from `index.html`. Dev only — nothing to upload. |
 | `HANDOFF.md` | This document. |
@@ -236,6 +241,48 @@ button and the settings toggle stay hidden, and typing the fields in by hand wor
   (`{view, sort}`); omit it for a plain block. On the grouped views the single count block is
   deliberately not a link — it describes the view you are already on. Each clickable block carries a
   faint ↗ because there is no hover state on a phone and they would otherwise look inert.
+
+### The site: three pages, one wall between them
+
+```
+public_html/
+  index.html            home page      — static, zero API calls
+  assets/               fonts, brand.css, wordmark, icon (shared by the two public pages)
+  collection/index.php  public shelf   — read-only, no login
+  app/index.html        the app        — login-gated, does everything
+  api/                  every endpoint requires a session, except login/logout
+  uploads/covers/       cover images (public files, as they always were)
+```
+
+**The home page makes no API calls at all** — this was an explicit requirement. It is HTML plus
+`assets/`: six same-origin GETs (the page, the CSS, two fonts, the wordmark, the favicon), no `fetch`,
+no PHP, no third parties, no analytics. `node tools/site-test.js` asserts that from the browser's
+own network log: off-site requests 0, `/api/` requests 0, non-GET requests 0.
+
+**The public shelf is server-rendered on purpose.** A JSON endpoint plus client-side `fetch` would have
+been the obvious build, and it would have meant shipping a public API. Instead `collection/index.php`
+runs one SELECT and prints HTML, so there is no public endpoint to call, no parameters to inject (it
+reads none), and no client-side data layer. It never includes the AI helpers, so nothing on it can
+spend money or touch the API key.
+
+What the public shelf shows: covers, book titles, issue numbers, characters, publisher, year, variant,
+grails and favorites, and the key-issue notes. What it does not: **value, paid, acquired, tags and
+notes are not in the SELECT list at all** — not merely unrendered — so they cannot leak into the HTML
+through a later edit. Condition is out too, matching what the page's own copy promises.
+
+**Everything that writes stays behind the login.** `list`, `save`, `delete` and `identify` each call
+`require_login()` and answer 401 without a session; verified logged-out, including that a POST of a
+fake book to `save.php` writes nothing. `api/config.php` is denied by `api/.htaccess` on Apache, and
+even if it were served it executes to an empty body (it is only `define()`s).
+
+The app moved from `/` to `/app/` so the root could be the home page. Two constants carry that:
+`API_BASE = "../api/"` and `COVER_PATH = "../uploads/covers/"`. The session cookie is scoped to the
+whole site, so the move does not log anyone out, and `api/` still resolves its own paths from
+`__DIR__`. The top-bar wordmark in the app is now a link back to the home page.
+
+Accounts for other people do not exist yet. The home page says "coming soon" in text and asks for
+nothing — no form, no waiting list, no email field — because a signup form needs a backend, which is
+exactly what the page was required not to have.
 
 ### Favorites and grails
 
