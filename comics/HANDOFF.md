@@ -241,17 +241,19 @@ button and the settings toggle stay hidden, and typing the fields in by hand wor
 
 Each read sends the uncropped photo at `IDENTIFY_MAX` (1400px long edge), which the API bills as
 **1,700 image tokens** for a portrait cover, plus ~500 tokens of prompt and ~200 back. On
-`claude-opus-5` that is roughly **$0.047 a book** — about $7 to catalogue 150 comics. `claude-sonnet-5`
-is ~5x cheaper and `claude-haiku-4-5` ~15x, both a one-line `AI_MODEL` change in `config.php`; the
-image-tier maths in `model_image_limits()` already handles all three (Haiku is standard tier, so a
-1400px photo is resized to 896x1343 / 1,536 tokens server-side, and the coordinate conversion follows
-it correctly).
+`claude-opus-5` that is roughly **$0.047 a book** — about $7 to catalogue 150 comics.
 
-Settings has a **"Read covers at high resolution"** toggle (`settings.hiRes`, default on). Off sends
-`IDENTIFY_MAX_LOW` (1120px) — **1,080 image tokens, 36% less**. It exists so the two can be compared
-on the same book without a re-deploy; the accuracy half of that comparison needs a real API key and so
-can only be run on the live site. `node scratchpad/res-test.js` asserts the toggle changes what is
-actually uploaded (934x1400 -> 747x1120), that it survives a reload, and that no read is skipped.
+Cheaper options, if that ever matters:
+
+* **A smaller model.** One line in `config.php`: `claude-sonnet-5` is ~5x cheaper, `claude-haiku-4-5`
+  ~15x. `model_image_limits()` already handles all three — Haiku is standard tier, so a 1400px photo is
+  resized to 896x1343 / 1,536 tokens, and the coordinate conversion follows it correctly. The reason to
+  stay on Opus is `key_info`: first appearances are recall, not reading, and a wrong one looks
+  authoritative.
+* **A smaller photo.** 1120px would bill 1,080 image tokens — 36% less. This was built as a Settings
+  toggle and then removed: ~$2 across a 150-book collection did not justify a possibly worse read, and
+  the accuracy comparison can only be run with a real key on the live site. `IDENTIFY_MAX` is one
+  constant if it ever needs revisiting.
 
 The crop and quad conversion is resolution- and model-agnostic: `identify.php` recomputes
 `resized_size()` from the dimensions of the image it actually received, so a box at 10-90% of what the
@@ -346,6 +348,9 @@ gear button did nothing at all — no export, no sync-now, no log out, no auto-r
 shipped that way through three more commits before a test that actually clicked the gear caught it.
 None of the view/nav suites touched it. When editing this file, run the suite that exercises the thing
 you did *not* change.
+
+`node tools/settings-test.js` now covers it: the gear opens from all three views, and export, sync-now
+and log-out each still do their job.
 
 
 - The owner is **non-technical** — explain steps plainly, give exact clicks, confirm before anything

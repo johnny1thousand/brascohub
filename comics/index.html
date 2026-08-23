@@ -220,7 +220,6 @@
   .ai-strip .why { display: block; margin-top: 5px; color: var(--muted); font-weight: 600; }
   .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 14px 16px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; }
   .toggle-row input { width: auto; }
-  .toggle-row small { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; font-weight: 400; text-transform: none; letter-spacing: 0; }
 
   /* camera */
   .cam-stage { background: #14110F; border-radius: var(--radius-sm); overflow: hidden; position: relative; aspect-ratio: 3 / 4; display: grid; place-items: center; }
@@ -507,10 +506,6 @@
           <span>Read covers automatically</span>
           <input type="checkbox" id="autoReadToggle">
         </label>
-        <label class="toggle-row" id="hiResRow" style="display:none">
-          <span>Read covers at high resolution<small>Off sends a smaller photo: about a third cheaper per read, and possibly less accurate.</small></span>
-          <input type="checkbox" id="hiResToggle">
-        </label>
         <button class="menu-item" id="exportBtn"><span class="ico">⬇</span><span>Download a copy (CSV)</span></button>
         <button class="menu-item" id="retryBtn"><span class="ico">⟳</span><span>Sync now</span></button>
         <button class="menu-item" id="logoutBtn"><span class="ico">⏻</span><span>Log out</span></button>
@@ -545,10 +540,10 @@
   // What gets sent for identification: always the whole photo, sharper than what
   // we store. Small print (issue numbers, date boxes) needs the extra detail, and
   // an uncropped image keeps the returned coordinates in a known space.
-  // 1400px long edge bills as 1,650 image tokens; 1120px bills as 1,080. The lower
-  // setting exists so the two can be compared on the same book — see the
-  // "high resolution" toggle in Settings.
-  var IDENTIFY_MAX = 1400, IDENTIFY_MAX_LOW = 1120, IDENTIFY_QUALITY = 0.85;
+  // A portrait cover at 1400px long edge bills as 1,700 image tokens, about
+  // $0.047 a read on Opus. 1120px would be 1,080 tokens, but the smaller photo
+  // was not worth a possibly worse read — see HANDOFF.md.
+  var IDENTIFY_MAX = 1400, IDENTIFY_QUALITY = 0.85;
 
   var COMIC_SVG = '<svg class="ph" viewBox="0 0 120 170" xmlns="http://www.w3.org/2000/svg" fill="none">' +
     '<rect x="10" y="8" width="94" height="154" rx="6" stroke="#9AA0A8" stroke-width="4"/>' +
@@ -575,7 +570,7 @@
 
   // ---------- persistence ----------
   function load() {
-    var fallback = { books: [], outbox: [], settings: { view: "library", sort: "added", filterChar: "", autoRead: true, hiRes: true } };
+    var fallback = { books: [], outbox: [], settings: { view: "library", sort: "added", filterChar: "", autoRead: true } };
     try {
       var raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
       if (!raw || !Array.isArray(raw.books)) return fallback;
@@ -1388,8 +1383,7 @@
     if (draftMaster) {
       // The uncropped photo, so a crop box always refers to the same image and
       // re-reading can never crop a crop.
-      var readMax = state.settings.hiRes === false ? IDENTIFY_MAX_LOW : IDENTIFY_MAX;
-      body = { image: downscale(draftMaster, readMax, IDENTIFY_QUALITY, null) };
+      body = { image: downscale(draftMaster, IDENTIFY_MAX, IDENTIFY_QUALITY, null) };
     } else if (draft.coverData) {
       body = { image: draft.coverData };
     } else if (draft.cover && !draft.removeCover) {
@@ -1680,8 +1674,6 @@
       aiAvailable = !!res.ai;
       el("autoReadRow").style.display = aiAvailable ? "" : "none";
       el("autoReadToggle").checked = state.settings.autoRead !== false;
-      el("hiResRow").style.display = aiAvailable ? "" : "none";
-      el("hiResToggle").checked = state.settings.hiRes !== false;
       hideLogin();
       applyServerBooks(res.books);
       lastSynced = new Date();
@@ -1803,11 +1795,6 @@
     state.settings.autoRead = this.checked;
     persistLocal();
     showToast(this.checked ? "Covers will be read automatically" : "Automatic cover reading is off");
-  };
-  el("hiResToggle").onchange = function () {
-    state.settings.hiRes = this.checked;
-    persistLocal();
-    showToast(this.checked ? "Reading covers at 1400px" : "Reading covers at 1120px");
   };
   el("exportBtn").onclick = function () { closeModal("settingsModal"); exportCsv(); };
   el("retryBtn").onclick = function () {
