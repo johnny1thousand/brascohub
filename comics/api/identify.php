@@ -109,10 +109,14 @@ $instructions =
     "ordinary issue or you are not sure.\n" .
     "- confidence: how sure you are of series and issue together.\n" .
     "- note: one short sentence for anything the collector should double-check, or empty.\n" .
-    "- cover_box: the comic book itself within the photo, as [x1, y1, x2, y2] in pixel " .
-    "coordinates — top-left and bottom-right corners of the book's edges, excluding the table, " .
-    "hand, sleeve or background around it. The image is " . $imgW . " pixels wide and " . $imgH .
-    " pixels tall. If the book already fills the frame, return [0, 0, " . $imgW . ", " . $imgH . "].\n\n" .
+    "- cover_quad: the four corners of the comic book in the photo, in pixel coordinates, as " .
+    "[x1, y1, x2, y2, x3, y3, x4, y4] going clockwise from the book's top-left corner. Follow the " .
+    "book's actual edges, however it is tilted or angled — these are used to straighten it, so put " .
+    "each corner exactly on the corner of the cover, not on a bounding box around it. Exclude the " .
+    "table, hand, sleeve or background. The image is " . $imgW . " pixels wide and " . $imgH .
+    " pixels tall.\n" .
+    "- cover_box: the same book as an upright rectangle, [x1, y1, x2, y2] — top-left then " .
+    "bottom-right. Used only if the corners cannot be trusted.\n\n" .
     "Never invent a value. An empty string is always better than a guess.";
 
 $schema = [
@@ -131,13 +135,18 @@ $schema = [
         // Exactly four numbers, stated in the description rather than with
         // minItems/maxItems: structured outputs only accepts minItems 0 or 1 and
         // rejects maxItems outright. A reply with any other count is ignored below.
+        'cover_quad'  => [
+            'type' => 'array',
+            'description' => 'Exactly eight numbers: the book\'s four corners in pixel coordinates as [x1, y1, x2, y2, x3, y3, x4, y4], clockwise from the top-left corner of the cover.',
+            'items' => ['type' => 'number'],
+        ],
         'cover_box'   => [
             'type' => 'array',
             'description' => 'Exactly four numbers, the pixel coordinates of the book in the photo as [x1, y1, x2, y2] (top-left corner, then bottom-right corner).',
             'items' => ['type' => 'number'],
         ],
     ],
-    'required' => ['character', 'series', 'issue', 'year', 'year_source', 'publisher', 'variant', 'key_info', 'confidence', 'note', 'cover_box'],
+    'required' => ['character', 'series', 'issue', 'year', 'year_source', 'publisher', 'variant', 'key_info', 'confidence', 'note', 'cover_quad', 'cover_box'],
     'additionalProperties' => false,
 ];
 
@@ -233,6 +242,7 @@ $box = $fields['cover_box'] ?? null;
 if (is_array($box) && count($box) === 4) {
     list($maxEdge, $maxTokens) = model_image_limits((string) ($body['model'] ?? ai_model()));
     list($seenW, $seenH) = resized_size($imgW, $imgH, $maxEdge, $maxTokens);
+    // $seenW/$seenH are reused by the quad conversion below.
     $x1 = min(max((float) $box[0], 0), $seenW) / $seenW;
     $y1 = min(max((float) $box[1], 0), $seenH) / $seenH;
     $x2 = min(max((float) $box[2], 0), $seenW) / $seenW;
@@ -250,11 +260,38 @@ if (is_array($box) && count($box) === 4) {
     }
 }
 
+// The four corners, in the same fractional space as the crop.
+$quad = null;
+$rawQuad = $fields['cover_quad'] ?? null;
+if (is_array($rawQuad) && count($rawQuad) === 8) {
+    if (!isset($seenW)) {
+        list($maxEdge, $maxTokens) = model_image_limits((string) ($body['model'] ?? ai_model()));
+        list($seenW, $seenH) = resized_size($imgW, $imgH, $maxEdge, $maxTokens);
+    }
+    $pts = [];
+    for ($i = 0; $i < 8; $i += 2) {
+        $pts[] = [
+            'x' => round(min(max((float) $rawQuad[$i], 0), $seenW) / $seenW, 4),
+            'y' => round(min(max((float) $rawQuad[$i + 1], 0), $seenH) / $seenH, 4),
+        ];
+    }
+    // Reject a quad that is a sliver or barely smaller than the frame; the
+    // browser checks the shape again before trusting it.
+    $xs = array_column($pts, 'x');
+    $ys = array_column($pts, 'y');
+    $spanX = max($xs) - min($xs);
+    $spanY = max($ys) - min($ys);
+    if ($spanX > 0.15 && $spanY > 0.15) {
+        $quad = $pts;
+    }
+}
+
 $usage = $body['usage'] ?? [];
 json_response([
     'ok' => true,
     'fields' => $out,
     'crop' => $crop,
+    'quad' => $quad,
     'model' => $body['model'] ?? ai_model(),
     'usage' => [
         'input_tokens' => (int) ($usage['input_tokens'] ?? 0),

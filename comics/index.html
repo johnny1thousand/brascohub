@@ -493,6 +493,8 @@
   var COVER_MAX = 1000, COVER_QUALITY = 0.72;
   var THUMB_MAX = 360, THUMB_QUALITY = 0.70;
   var MASTER_MAX = 1600;   // kept in memory only, so a crop stays sharp
+  var RECTIFY_MAX = 1200;  // working size for the straightened cover
+  var COMIC_ASPECT = 0.66; // 6.625 x 10.25 inches, the standard since the 1970s
   // What gets sent for identification: always the whole photo, sharper than what
   // we store. Small print (issue numbers, date boxes) needs the extra detail, and
   // an uncropped image keeps the returned coordinates in a known space.
@@ -517,6 +519,7 @@
   var identifying = false;
   var draftMaster = null;   // canvas of the current photo, for re-cropping
   var draftCrop = null;     // {x,y,w,h} as fractions of the photo, or null
+  var draftQuad = null;     // four corners of the book, as fractions, or null
   var imgTypeCache = null;
 
   // ---------- persistence ----------
@@ -835,6 +838,7 @@
     el("moreDetails").open = !!(draft.publisher || draft.year || draft.variant || draft.value || draft.paid || draft.acquired || draft.tags || draft.notes || draft.key_info);
     draftMaster = null;
     draftCrop = null;
+    draftQuad = null;
     el("uncropBtn").style.display = "none";
     renderCoverPreview();
     setAiStrip(null);
@@ -929,6 +933,7 @@
       el("fNotes").value = "";
       draftMaster = null;
       draftCrop = null;
+      draftQuad = null;
       el("uncropBtn").style.display = "none";
       el("fKeyInfo").value = "";
       renderCoverPreview();
@@ -964,6 +969,148 @@
     // WebP is 25-35% smaller than JPEG at the same quality where it exists.
     imgTypeCache = webp.indexOf("data:image/webp") === 0 ? "image/webp" : "image/jpeg";
     return imgTypeCache;
+  }
+
+  // ---------- straightening a photographed cover ----------
+  // Given the four corners of the book in the photo, map that quadrilateral onto
+  // a rectangle: crops to the edges and takes the tilt and keystone out at once.
+
+  /**
+   * Homography taking destination (rectangle) coordinates to source (photo)
+   * coordinates, as [a..h] where sx = (ax+by+c)/(gx+hy+1), sy = (dx+ey+f)/(gx+hy+1).
+   * Solved by Gaussian elimination with partial pivoting; null if degenerate.
+   */
+  function solveHomography(dst, src) {
+    var M = [], rhs = [], i, r, r2, c, c2;
+    for (i = 0; i < 4; i++) {
+      var x = dst[i].x, y = dst[i].y, u = src[i].x, v = src[i].y;
+      M.push([x, y, 1, 0, 0, 0, -x * u, -y * u]); rhs.push(u);
+      M.push([0, 0, 0, x, y, 1, -x * v, -y * v]); rhs.push(v);
+    }
+    var n = 8;
+    for (i = 0; i < n; i++) {
+      var piv = i;
+      for (r = i + 1; r < n; r++) if (Math.abs(M[r][i]) > Math.abs(M[piv][i])) piv = r;
+      if (Math.abs(M[piv][i]) < 1e-12) return null;
+      var tm = M[i]; M[i] = M[piv]; M[piv] = tm;
+      var tr = rhs[i]; rhs[i] = rhs[piv]; rhs[piv] = tr;
+      for (r2 = i + 1; r2 < n; r2++) {
+        var f = M[r2][i] / M[i][i];
+        if (!f) continue;
+        for (c = i; c < n; c++) M[r2][c] -= f * M[i][c];
+        rhs[r2] -= f * rhs[i];
+      }
+    }
+    var out = new Array(n);
+    for (i = n - 1; i >= 0; i--) {
+      var sum = rhs[i];
+      for (c2 = i + 1; c2 < n; c2++) sum -= M[i][c2] * out[c2];
+      out[i] = sum / M[i][i];
+    }
+    return out;
+  }
+
+  function dist2d(a, b) { return Math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y)); }
+
+  /** Corners in any order or winding -> top-left, top-right, bottom-right, bottom-left. */
+  function orderCorners(pts) {
+    var cx = 0, cy = 0, i;
+    for (i = 0; i < 4; i++) { cx += pts[i].x / 4; cy += pts[i].y / 4; }
+    var sorted = pts.slice().sort(function (a, b) {
+      return Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx);
+    });
+    var best = 0, bestScore = Infinity;
+    for (i = 0; i < 4; i++) {
+      var score = sorted[i].x + sorted[i].y;
+      if (score < bestScore) { bestScore = score; best = i; }
+    }
+    return [sorted[best % 4], sorted[(best + 1) % 4], sorted[(best + 2) % 4], sorted[(best + 3) % 4]];
+  }
+
+  /** Width-to-height of the cover, measured from the quad's own edges. */
+  function quadAspect(q) {
+    var w = (dist2d(q[0], q[1]) + dist2d(q[3], q[2])) / 2;
+    var h = (dist2d(q[0], q[3]) + dist2d(q[1], q[2])) / 2;
+    if (!(w > 0) || !(h > 0)) return null;
+    return w / h;
+  }
+
+  /** Nudge the corners outward so a slightly tight quad keeps the book's border. */
+  function growQuad(q, factor) {
+    var cx = 0, cy = 0, i;
+    for (i = 0; i < 4; i++) { cx += q[i].x / 4; cy += q[i].y / 4; }
+    return q.map(function (p) {
+      return { x: cx + (p.x - cx) * factor, y: cy + (p.y - cy) * factor };
+    });
+  }
+
+  /**
+   * Returns a canvas holding the straightened cover, or null when the corners
+   * do not describe a plausible comic book.
+   */
+  function rectify(srcCanvas, quadRel, outMax) {
+    if (!quadRel || quadRel.length !== 4) return null;
+    var sw = srcCanvas.width, sh = srcCanvas.height;
+    var quad = orderCorners(quadRel.map(function (p) {
+      return { x: p.x * sw, y: p.y * sh };
+    }));
+    quad = growQuad(quad, 1.006);
+
+    var measured = quadAspect(quad);
+    // A comic is somewhere near 2:3. Anything wildly outside that means the
+    // corners are wrong, and straightening would do more harm than good.
+    if (measured === null || measured < 0.35 || measured > 1.4) return null;
+
+    // The edge lengths in the photo are foreshortened by the camera angle, so
+    // they are a poor guide to the book's real proportions (a 0.66 cover shot at
+    // an angle can measure 0.88). Comics are a known shape, so use that whenever
+    // the measurement is consistent with a portrait book, and fall back to the
+    // measurement only for something that clearly is not comic-shaped.
+    var aspect = (measured > 0.45 && measured < 1.15) ? COMIC_ASPECT : measured;
+
+    var outW, outH;
+    if (aspect < 1) { outH = outMax; outW = Math.max(1, Math.round(outMax * aspect)); }
+    else { outW = outMax; outH = Math.max(1, Math.round(outMax / aspect)); }
+
+    var H = solveHomography(
+      [{ x: 0, y: 0 }, { x: outW, y: 0 }, { x: outW, y: outH }, { x: 0, y: outH }],
+      quad
+    );
+    if (!H) return null;
+
+    var sctx = srcCanvas.getContext("2d");
+    var srcData = sctx.getImageData(0, 0, sw, sh).data;
+    var out = document.createElement("canvas");
+    out.width = outW; out.height = outH;
+    var octx = out.getContext("2d");
+    var dstImg = octx.createImageData(outW, outH);
+    var dstData = dstImg.data;
+    var a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], hh = H[7];
+
+    for (var y = 0; y < outH; y++) {
+      for (var x = 0; x < outW; x++) {
+        var den = g * x + hh * y + 1;
+        var fx = (a * x + b * y + c) / den;
+        var fy = (d * x + e * y + f) / den;
+        // Bilinear sample, clamped at the edges.
+        if (fx < 0) fx = 0; else if (fx > sw - 1) fx = sw - 1;
+        if (fy < 0) fy = 0; else if (fy > sh - 1) fy = sh - 1;
+        var x0 = fx | 0, y0 = fy | 0;
+        var x1 = x0 + 1 < sw ? x0 + 1 : x0, y1 = y0 + 1 < sh ? y0 + 1 : y0;
+        var tx = fx - x0, ty = fy - y0;
+        var i00 = (y0 * sw + x0) * 4, i10 = (y0 * sw + x1) * 4;
+        var i01 = (y1 * sw + x0) * 4, i11 = (y1 * sw + x1) * 4;
+        var o = (y * outW + x) * 4;
+        for (var ch = 0; ch < 3; ch++) {
+          var top = srcData[i00 + ch] + (srcData[i10 + ch] - srcData[i00 + ch]) * tx;
+          var bot = srcData[i01 + ch] + (srcData[i11 + ch] - srcData[i01 + ch]) * tx;
+          dstData[o + ch] = top + (bot - top) * ty;
+        }
+        dstData[o + 3] = 255;
+      }
+    }
+    octx.putImageData(dstImg, 0, 0);
+    return out;
   }
 
   // crop, when given, is {x,y,w,h} as fractions of the source image.
@@ -1002,6 +1149,7 @@
       draftMaster.height = Math.max(1, Math.round(h * scale));
       draftMaster.getContext("2d").drawImage(source, 0, 0, draftMaster.width, draftMaster.height);
       draftCrop = null;
+      draftQuad = null;
       encodeCover();
       draft.removeCover = false;
       renderCoverPreview();
@@ -1015,8 +1163,28 @@
 
   function encodeCover() {
     if (!draftMaster) return;
-    draft.coverData = downscale(draftMaster, COVER_MAX, COVER_QUALITY, draftCrop);
-    draft.thumbData = downscale(draftMaster, THUMB_MAX, THUMB_QUALITY, draftCrop);
+    // Straightened if we have the four corners, otherwise a plain rectangular crop.
+    var source = draftMaster, crop = draftCrop;
+    if (draftQuad) {
+      var flat = rectify(draftMaster, draftQuad, RECTIFY_MAX);
+      if (flat) { source = flat; crop = null; }
+      else { draftQuad = null; }          // corners did not describe a book
+    }
+    draft.coverData = downscale(source, COVER_MAX, COVER_QUALITY, crop);
+    draft.thumbData = downscale(source, THUMB_MAX, THUMB_QUALITY, crop);
+  }
+
+  /** Straighten to the book's corners. Returns false if the corners were unusable. */
+  function applyStraighten(quad) {
+    if (!draftMaster || !quad) return false;
+    var previous = draftQuad;
+    draftQuad = quad;
+    draftCrop = null;
+    encodeCover();
+    if (!draftQuad) { draftQuad = previous; encodeCover(); return false; }
+    renderCoverPreview();
+    el("uncropBtn").style.display = "";
+    return true;
   }
 
   // Trim to the book. A little padding keeps the edges from being shaved off,
@@ -1035,6 +1203,7 @@
       crop.h = Math.min(crop.h, 1 - crop.y);
     }
     draftCrop = crop;
+    if (!crop) draftQuad = null;
     encodeCover();
     renderCoverPreview();
     el("uncropBtn").style.display = crop ? "" : "none";
@@ -1145,8 +1314,10 @@
         el("readCoverBtn").disabled = false;
         // The form may have moved on (saved, closed, or a different book opened).
         if (!draft || draft.client_id !== forDraft) return;
-        var cropped = (res.crop && draftMaster) ? applyCrop(res.crop) : false;
-        applyIdentified(res.fields || {}, cropped);
+        var cropped = false, straightened = false;
+        if (draftMaster && res.quad) straightened = cropped = applyStraighten(res.quad);
+        if (!cropped && draftMaster && res.crop) cropped = applyCrop(res.crop);
+        applyIdentified(res.fields || {}, cropped, straightened);
       })
       .catch(function (err) {
         identifying = false;
@@ -1158,7 +1329,7 @@
   }
 
   // Fills only the fields you have left empty — never overwrites your own typing.
-  function applyIdentified(f, cropped) {
+  function applyIdentified(f, cropped, straightened) {
     var pairs = [
       ["fChar", f.character, "character"],
       ["fSeries", f.series, "book name"],
@@ -1182,7 +1353,7 @@
 
     if (!filled.length) {
       // Not a failure — usually it found the same things you had already typed.
-      setAiStrip("neutral", cropped ? "Trimmed to the book" : "Nothing to fill in",
+      setAiStrip("neutral", straightened ? "Straightened to the book" : cropped ? "Trimmed to the book" : "Nothing to fill in",
         (cropped ? "Cover saved at " + coverKb() + " KB. " : "") +
         (skipped ? "What it found was already typed in." : "It could not make out this cover."),
         "Type the details in as usual.");
@@ -1194,7 +1365,8 @@
       why = (why ? why + " " : "") + "The year is from Claude's knowledge of this issue, not printed on the cover.";
     }
     setAiStrip("done", "Filled in: " + filled.join(", "),
-      (cropped ? "Trimmed to the book, " + coverKb() + " KB. " : "") + conf + " Check it before saving.", why);
+      ((straightened ? "Straightened to the book, " : cropped ? "Trimmed to the book, " : "") +
+        (cropped ? coverKb() + " KB. " : "")) + conf + " Check it before saving.", why);
   }
 
   // ---------- detail ----------
@@ -1536,12 +1708,14 @@
     draft.thumbData = "";
     draftMaster = null;
     draftCrop = null;
+    draftQuad = null;
     el("uncropBtn").style.display = "none";
     renderCoverPreview();
     showReadButton();
     setAiStrip(null);
   };
   el("uncropBtn").onclick = function () {
+    draftQuad = null;
     if (applyCrop(null)) setAiStrip("neutral", "Using the whole photo", "Saved at " + coverKb() + " KB.");
   };
   el("readCoverBtn").onclick = function () { identifyCover(false); };
@@ -1580,6 +1754,10 @@
 
   window.addEventListener("online", function () { if (authed) flush(); });
   window.addEventListener("beforeunload", function () { if (camStream) stopCamera(); });
+
+  // Exposed so the geometry can be exercised directly by tests.
+  window.__ctTest = { solveHomography: solveHomography, orderCorners: orderCorners,
+                      quadAspect: quadAspect, growQuad: growQuad, rectify: rectify };
 
   boot();
 })();

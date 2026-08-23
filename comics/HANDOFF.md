@@ -61,6 +61,8 @@ login. Nothing in this folder touches the Car Tracker app at the repo root.
 | `api/.htaccess` | Blocks direct web access to `config.php`; no directory listing. |
 | `uploads/covers/` | Where cover JPEGs are written. `.htaccess` above it blocks script execution and listing. |
 | `fonts/OFL-*.txt` | Licence texts for the two embedded webfonts. Reference only — nothing to upload. |
+| `tools/schema-lint.php` | Checks `identify.php`'s schema against the keyword subset structured outputs accepts. Run after any schema change. |
+| `tools/test-geometry.js`, `tools/geometry.js`, `tools/sync-geometry.sh` | Unit tests for the straightening maths, run against functions extracted from `index.html`. Dev only — nothing to upload. |
 | `HANDOFF.md` | This document. |
 
 ## 3. How to run / test
@@ -158,6 +160,43 @@ button and the settings toggle stay hidden, and typing the fields in by hand wor
   balance explains itself best); 4xx is reported as permanent, 5xx and network trouble as retryable; a
   refusal, an unparseable reply, and a missing key each have their own message. Every failure leaves you
   with a working form and a "type the details in as usual" line.
+- **Straightening (perspective correction):** the same call asks for `cover_quad` — the book's four
+  corners, clockwise from top-left — and the browser maps that quadrilateral onto a rectangle, which
+  crops to the edges and takes out tilt and keystone in one step. Pure JS in `index.html`: an 8×8 solve
+  for the homography (Gaussian elimination, partial pivoting) then an inverse map of every output pixel
+  with bilinear sampling; ~135ms for a 1200px cover. Corners are pushed out 0.6% so a tight quad does
+  not shave the border, and a quad measuring outside 0.35–1.4 is refused, falling back to the plain
+  `cover_box` crop (also refused server-side if its span is under 15% of the frame).
+  - **Output shape — do not derive it from the quad's edge lengths.** Perspective foreshortens them: a
+    real 0.66 cover measured 0.88 in testing. Comics are a known shape, so the output uses
+    `COMIC_ASPECT` (0.66 — 6.625×10.25in, standard since the 1970s) whenever the measurement is
+    consistent with a portrait book (0.45–1.15), falling back to the measurement only for something
+    clearly not comic-shaped. Recovering the true aspect from one view is possible (Zhang & He, from
+    the homography plus an assumed principal point) but unnecessary here and less robust.
+  - **Verified numerically, not by eye.** `tools/test-geometry.js` checks the maths against a known
+    homography (recovered to 5e-16) and every corner ordering and winding; a browser test warps a known
+    flat cover by a known perspective, straightens it back and compares per pixel — mean error 5.2/255
+    per channel, aspect exact. `tools/sync-geometry.sh` re-extracts the pure functions from
+    `index.html` so those tests always run the shipping code.
+- **Cropping to the book (the fallback):** `cover_box` is an upright rectangle. Claude's coordinates are
+  in the space of the image *after* the API's own resize, so `identify.php` reproduces that resize
+  (`resized_size()`, the reference implementation from the coordinates doc — verified against both of
+  its worked examples, 1075×1520→924×1307 and 1920×1080→1456×819) and converts to fractions of the
+  image. **Tier matters:** high-resolution models (Claude 4.7 and later — Opus 5, Sonnet 5, Fable 5)
+  allow 2576px/4784 tokens, everything else 1568/1568; `model_image_limits()` keys off the model named
+  in the *response*. Get the tier wrong and every crop shifts silently.
+- **What is sent vs what is stored:** identification always sends the **uncropped** photo at
+  1400px/q0.85 — sharper than what is stored, because issue numbers and date boxes are small, and
+  uncropped so a returned box or quad always refers to the same image (re-reading can never crop a
+  crop; there is a regression test). What is *stored* is much smaller: a 1000px cover and 360px
+  thumbnail at quality 0.72/0.70, **WebP where the browser supports it**, JPEG otherwise. A detailed
+  1800×2400 photo that used to store a 417KB cover now stores ~115KB — about 70% less. The
+  full-resolution photo is never uploaded. A 1600px `draftMaster` canvas lives in memory only while the
+  form is open, so crops and straightening are cut from a sharp source rather than from the stored copy.
+- **Key issue info:** `key_info` (TEXT, added by the migration in `db()`) holds why an issue matters — a
+  first appearance, a death, a famous arc. Claude fills it during identification; it is an ordinary
+  editable field, searchable, in the CSV, and shown in the detail view as a "Why it matters" callout.
+  It is the model's recollection, not a citation.
 - **Not built yet:** a comics-database lookup (ComicVine or similar) to confirm the year, publisher and
   character list from series + issue rather than from the model's recollection, and barcode scanning for
   anything printed after the mid-80s. Both slot in alongside `identify.php` without touching the form.
