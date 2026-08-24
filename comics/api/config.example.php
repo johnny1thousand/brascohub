@@ -19,3 +19,10 @@ define('APP_PASSWORD_HASH', 'REPLACE_WITH_BCRYPT_HASH');
 define('ANTHROPIC_API_KEY', '');
 // Optional. Defaults to claude-opus-5 when omitted.
 define('AI_MODEL', 'claude-opus-5');
+
+// Cover reads a non-owner account may spend per calendar month, since they run
+// on the key above — your credit. 0 means unlimited. The owner is never capped.
+define('AI_MONTHLY_READS', 50);
+
+// Shown on your public shelf and beside your name. Optional.
+define('OWNER_DISPLAY_NAME', '');

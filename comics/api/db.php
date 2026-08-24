@@ -40,6 +40,34 @@ function db() {
             KEY idx_series (series)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
 
+        // One row per person. The owner row is seeded from config.php the first
+        // time this runs, so the existing login keeps working unchanged.
+        $pdo->exec('CREATE TABLE IF NOT EXISTS users (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            username VARCHAR(64) NOT NULL,
+            handle VARCHAR(64) NOT NULL,
+            display_name VARCHAR(120) NOT NULL DEFAULT "",
+            password_hash VARCHAR(255) NOT NULL,
+            is_owner TINYINT(1) NOT NULL DEFAULT 0,
+            public_shelf TINYINT(1) NOT NULL DEFAULT 0,
+            ai_reads_used INT NOT NULL DEFAULT 0,
+            ai_reads_month CHAR(7) NOT NULL DEFAULT "",
+            created_at DATETIME NOT NULL,
+            last_login DATETIME NULL,
+            UNIQUE KEY uniq_username (username),
+            UNIQUE KEY uniq_handle (handle)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+
+        // An invite is a one-use code. Kept after use as a record of who joined.
+        $pdo->exec('CREATE TABLE IF NOT EXISTS invites (
+            code VARCHAR(32) PRIMARY KEY,
+            created_by INT NOT NULL,
+            created_at DATETIME NOT NULL,
+            note VARCHAR(120) NOT NULL DEFAULT "",
+            used_by INT NULL,
+            used_at DATETIME NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+
         // Columns added after the first release. Safe to run on every request:
         // each one is only added when missing, and a failure here must never
         // take the app down.
@@ -48,6 +76,7 @@ function db() {
             'favorite' => 'ADD COLUMN favorite TINYINT(1) NOT NULL DEFAULT 0',
             'grail'    => 'ADD COLUMN grail TINYINT(1) NOT NULL DEFAULT 0',
             'value_checked' => 'ADD COLUMN value_checked DATETIME NULL',
+            'user_id' => 'ADD COLUMN user_id INT NOT NULL DEFAULT 0, ADD KEY idx_user (user_id)',
         ];
         foreach ($added as $column => $ddl) {
             try {
@@ -60,8 +89,60 @@ function db() {
                 // Leave it alone — the app still works without the new column.
             }
         }
+
+        bootstrap_owner($pdo);
     }
     return $pdo;
+}
+
+/**
+ * Turns a single-login install into a multi-user one, once, in place:
+ *   - copies config.php's username and password hash into a users row, so the
+ *     existing login keeps working with the same password;
+ *   - hands every existing book to that owner;
+ *   - re-keys the client_id uniqueness per user, since two people can now
+ *     generate the same id.
+ * Every step is guarded, so running it on an already-migrated database does
+ * nothing.
+ */
+function bootstrap_owner(PDO $pdo) {
+    try {
+        $ownerId = (int) $pdo->query('SELECT id FROM users WHERE is_owner = 1 ORDER BY id LIMIT 1')->fetchColumn();
+
+        if (!$ownerId && defined('APP_USERNAME') && defined('APP_PASSWORD_HASH') && APP_USERNAME !== '') {
+            $ins = $pdo->prepare('INSERT INTO users
+                (username, handle, display_name, password_hash, is_owner, public_shelf, created_at)
+                VALUES (:u, :h, :d, :p, 1, 1, NOW())');
+            $ins->execute([
+                'u' => APP_USERNAME,
+                'h' => handle_from(APP_USERNAME),
+                'd' => defined('OWNER_DISPLAY_NAME') ? OWNER_DISPLAY_NAME : APP_USERNAME,
+                'p' => APP_PASSWORD_HASH,
+            ]);
+            $ownerId = (int) $pdo->lastInsertId();
+        }
+
+        // Books that predate accounts belong to the owner.
+        if ($ownerId) {
+            $pdo->prepare('UPDATE comics SET user_id = :id WHERE user_id = 0')->execute(['id' => $ownerId]);
+        }
+
+        // client_id is generated in the browser, so it is only unique per person.
+        $keys = $pdo->query("SHOW INDEX FROM comics WHERE Key_name = 'uniq_client_id'")->fetchAll();
+        if ($keys) {
+            $pdo->exec('ALTER TABLE comics DROP INDEX uniq_client_id, ADD UNIQUE KEY uniq_user_client (user_id, client_id)');
+        }
+    } catch (PDOException $e) {
+        // A half-migrated database still serves the owner; do not take the app down.
+    }
+}
+
+/** A URL-safe public handle: lowercase, digits and dashes only. */
+function handle_from($name) {
+    $h = strtolower(preg_replace('/[^A-Za-z0-9]+/', '-', (string) $name));
+    $h = trim($h, '-');
+    if (strlen($h) < 3) $h = 'shelf-' . substr(sha1($name . microtime()), 0, 6);
+    return substr($h, 0, 60);
 }
 
 function json_response($data, $status = 200) {
@@ -87,11 +168,83 @@ function start_session() {
     session_start();
 }
 
+/**
+ * Every endpoint that touches a collection calls this and uses the row it
+ * returns. It is the single choke point: no query anywhere should mention a
+ * user id that did not come from here.
+ */
 function require_login() {
     start_session();
-    if (empty($_SESSION['logged_in'])) {
+    if (empty($_SESSION['logged_in']) || empty($_SESSION['uid'])) {
         json_response(['error' => 'Not logged in'], 401);
     }
+    $user = find_user_by_id((int) $_SESSION['uid']);
+    if (!$user) {
+        // The account was deleted underneath the session.
+        session_destroy();
+        json_response(['error' => 'Not logged in'], 401);
+    }
+    return $user;
+}
+
+function find_user_by_id($id) {
+    $q = db()->prepare('SELECT * FROM users WHERE id = :id');
+    $q->execute(['id' => (int) $id]);
+    return $q->fetch() ?: null;
+}
+
+function find_user_by_username($username) {
+    $q = db()->prepare('SELECT * FROM users WHERE username = :u');
+    $q->execute(['u' => (string) $username]);
+    return $q->fetch() ?: null;
+}
+
+function find_user_by_handle($handle) {
+    $q = db()->prepare('SELECT * FROM users WHERE handle = :h');
+    $q->execute(['h' => (string) $handle]);
+    return $q->fetch() ?: null;
+}
+
+/** What the browser is allowed to know about the signed-in account. */
+function user_public(array $u) {
+    return [
+        'username' => $u['username'],
+        'handle' => $u['handle'],
+        'display_name' => $u['display_name'] !== '' ? $u['display_name'] : $u['username'],
+        'is_owner' => (int) $u['is_owner'] === 1,
+        'public_shelf' => (int) $u['public_shelf'] === 1,
+        'reads_used' => reads_used_this_month($u),
+        'reads_limit' => (int) $u['is_owner'] === 1 ? 0 : ai_monthly_reads(),
+    ];
+}
+
+// ---------- the shared cover-read allowance ----------
+
+/** Reads a non-owner account may spend per calendar month. 0 means unlimited. */
+function ai_monthly_reads() {
+    $n = defined('AI_MONTHLY_READS') ? (int) AI_MONTHLY_READS : 50;
+    return $n > 0 ? $n : 0;
+}
+
+function reads_used_this_month(array $u) {
+    return $u['ai_reads_month'] === gmdate('Y-m') ? (int) $u['ai_reads_used'] : 0;
+}
+
+/** True when this account still has reads left this month. */
+function reads_available(array $u) {
+    if ((int) $u['is_owner'] === 1) return true;
+    $limit = ai_monthly_reads();
+    return $limit === 0 || reads_used_this_month($u) < $limit;
+}
+
+/** Counts one read against the month, rolling the counter over on the 1st. */
+function count_read(array $u) {
+    $month = gmdate('Y-m');
+    $sql = $u['ai_reads_month'] === $month
+        ? 'UPDATE users SET ai_reads_used = ai_reads_used + 1 WHERE id = :id'
+        : 'UPDATE users SET ai_reads_used = 1, ai_reads_month = :m WHERE id = :id';
+    $q = db()->prepare($sql);
+    $q->execute($u['ai_reads_month'] === $month ? ['id' => $u['id']] : ['id' => $u['id'], 'm' => $month]);
 }
 
 function read_json_body($maxBytes = 24 * 1024 * 1024) {

@@ -17,19 +17,40 @@
 require_once __DIR__ . '/../api/db.php';
 require_once __DIR__ . '/chart.php';
 
-const SHELF_TITLE = "Brian's Longbox";
 const SHELF_BLURB = 'A comic collection, catalogued a cover at a time.';
 
-/** @return array{books: array, ok: bool} */
-function public_shelf() {
+/**
+ * Whose shelf is this? ?u=<handle> names it; no parameter means the owner's,
+ * which keeps every link that existed before accounts did. The handle is
+ * matched against a strict pattern before it reaches a prepared statement, so
+ * there is nothing to inject and nothing to enumerate beyond guessing handles.
+ */
+function shelf_owner() {
+    $wanted = isset($_GET['u']) ? (string) $_GET['u'] : '';
     try {
-        $rows = db()->query(
+        if ($wanted !== '') {
+            if (!preg_match('/^[a-z0-9][a-z0-9_.-]{1,63}$/', $wanted)) return null;
+            return find_user_by_handle($wanted);
+        }
+        $q = db()->query('SELECT * FROM users WHERE is_owner = 1 ORDER BY id LIMIT 1');
+        return $q->fetch() ?: null;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+/** @return array{books: array, ok: bool} */
+function public_shelf($userId) {
+    try {
+        $rows = db()->prepare(
             'SELECT character_name, series, issue, variant, publisher, year,
                     key_info, favorite, grail, cover_file, thumb_file
              FROM comics
+             WHERE user_id = :uid
              ORDER BY series ASC, issue_sort ASC, issue ASC, id ASC'
-        )->fetchAll();
-        return ['books' => $rows, 'ok' => true];
+        );
+        $rows->execute(['uid' => (int) $userId]);
+        return ['books' => $rows->fetchAll(), 'ok' => true];
     } catch (Throwable $e) {
         // A database that is down is not worth a stack trace on a public page.
         return ['books' => [], 'ok' => false];
@@ -49,8 +70,14 @@ function book_title(array $b) {
     return $b['issue'] !== '' ? $name . ' #' . $b['issue'] : $name;
 }
 
-$shelf = public_shelf();
+$owner = shelf_owner();
+$private = $owner && (int) $owner['public_shelf'] !== 1;
+$shelf = ($owner && !$private) ? public_shelf($owner['id']) : ['books' => [], 'ok' => true];
 $books = $shelf['books'];
+
+$shelfTitle = $owner
+    ? (($owner['display_name'] !== '' ? $owner['display_name'] : $owner['username']) . "'s Longbox")
+    : 'No such shelf';
 
 $grails = $favorites = $rest = [];
 foreach ($books as $b) {
@@ -69,14 +96,15 @@ $HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.7l-1.3-1.2
 $GRAIL = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 3h13v3.2c0 3.4-2.3 6.2-5.4 6.7v4.6h3.4V20H7.5v-2.5h3.4v-4.6C7.8 12.4 5.5 9.6 5.5 6.2V3zm2 2v1.2c0 2.6 2 4.6 4.5 4.6s4.5-2 4.5-4.6V5h-9z"/></svg>';
 
 header('Content-Type: text/html; charset=utf-8');
-header('Cache-Control: public, max-age=300');
+header('Cache-Control: no-store, no-cache, must-revalidate');
+header('Pragma: no-cache');
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#EAE3D9">
-<title><?= e(SHELF_TITLE) ?> — LongBox</title>
+<title><?= e($shelfTitle) ?> — LongBox</title>
 <meta name="description" content="<?= e(SHELF_BLURB) ?> Catalogued with LongBox.">
 <link rel="icon" type="image/webp" href="../assets/icon.webp">
 <link rel="apple-touch-icon" href="../assets/icon.webp">
@@ -153,9 +181,11 @@ header('Cache-Control: public, max-age=300');
 
     <div class="head pad">
       <p class="eyebrow">A public shelf</p>
-      <h1><?= e(SHELF_TITLE) ?></h1>
-      <p class="lede"><?= e(SHELF_BLURB) ?> Read-only — condition, values and private notes stay behind the login.</p>
-      <div class="counts">
+      <h1><?= e($shelfTitle) ?></h1>
+      <p class="lede"><?= ($owner && !$private)
+        ? e(SHELF_BLURB) . ' Read-only — condition, values and private notes stay behind the login.'
+        : 'LongBox turns a photograph of a cover into a catalogued collection.' ?></p>
+      <div class="counts"<?= ($owner && !$private) ? '' : ' style="display:none"' ?>>
         <div><b><?= count($books) ?></b><span>Books</span></div>
         <div><b><?= count($characters) ?></b><span>Characters</span></div>
         <div><b><?= count($titles) ?></b><span>Book titles</span></div>
@@ -164,8 +194,18 @@ header('Cache-Control: public, max-age=300');
     </div>
 
     <div class="pad">
-<?= character_chart_card($books) ?>
-<?php if (!$shelf['ok']): ?>
+<?= ($owner && !$private) ? character_chart_card($books) : '' ?>
+<?php if (!$owner): ?>
+      <div class="empty">
+        <h2>No shelf here</h2>
+        <p>That link does not match a collection. Check the address, or have a look at what LongBox does.</p>
+      </div>
+<?php elseif ($private): ?>
+      <div class="empty">
+        <h2>This shelf is private</h2>
+        <p>Its owner has not made this collection public. Nothing of theirs is shown here.</p>
+      </div>
+<?php elseif (!$shelf['ok']): ?>
       <div class="empty">
         <h2>The shelf is offline</h2>
         <p>The collection could not be loaded just now. Nothing is lost — try again in a minute.</p>
@@ -227,7 +267,7 @@ header('Cache-Control: public, max-age=300');
 
       <div class="plug">
         <p><strong>Catalogued with LongBox.</strong> Photograph a cover and it fills in the character,
-          the book and the issue, straightens the shot, and files it. Accounts are coming soon.</p>
+          the book and the issue, straightens the shot, and files it. Accounts are by invite.</p>
         <a class="btn btn--red" href="../">See how it works</a>
       </div>
     </div>

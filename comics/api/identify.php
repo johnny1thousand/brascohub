@@ -4,7 +4,17 @@
  * prefill. Never writes anything: the owner confirms and saves as usual.
  */
 require_once __DIR__ . '/db.php';
-require_login();
+$me = require_login();
+
+// The cover read spends the owner's Anthropic credit, so every other account
+// gets a monthly allowance. The check is server-side; the browser only ever
+// sees how many are left.
+if (!reads_available($me)) {
+    json_response([
+        'error' => 'You have used all ' . ai_monthly_reads() . ' cover reads for this month. '
+            . 'Type the details in as usual — the allowance resets on the 1st.',
+    ], 429);
+}
 
 if (!ai_enabled()) {
     json_response(['error' => 'Cover reading is not set up on this site yet.'], 501);
@@ -286,6 +296,10 @@ if (is_array($rawQuad) && count($rawQuad) === 8) {
     }
 }
 
+
+// Only a real answer costs money, so only a real answer is counted.
+count_read($me);
+
 $usage = $body['usage'] ?? [];
 json_response([
     'ok' => true,
@@ -293,6 +307,9 @@ json_response([
     'crop' => $crop,
     'quad' => $quad,
     'model' => $body['model'] ?? ai_model(),
+    'reads_left' => (int) $me['is_owner'] === 1 || ai_monthly_reads() === 0
+        ? null
+        : max(0, ai_monthly_reads() - reads_used_this_month($me) - 1),
     'usage' => [
         'input_tokens' => (int) ($usage['input_tokens'] ?? 0),
         'output_tokens' => (int) ($usage['output_tokens'] ?? 0),

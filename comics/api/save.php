@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/db.php';
-require_login();
+$me = require_login();
 
 $in = read_json_body();
 
@@ -32,8 +32,9 @@ if ($fields['character_name'] === '' && $fields['series'] === '' && $fields['iss
     json_response(['error' => 'Add at least a character, a book name or an issue number.'], 400);
 }
 
-$existing = db()->prepare('SELECT cover_file, thumb_file, value FROM comics WHERE client_id = :cid');
-$existing->execute(['cid' => $clientId]);
+// Scoped: a client_id only means anything inside one account.
+$existing = db()->prepare('SELECT cover_file, thumb_file, value FROM comics WHERE client_id = :cid AND user_id = :uid');
+$existing->execute(['cid' => $clientId, 'uid' => $me['id']]);
 $existing = $existing->fetch();
 
 $coverFile = $existing ? $existing['cover_file'] : '';
@@ -71,6 +72,7 @@ $params['cid'] = $clientId;
 $params['cover_file'] = $coverFile;
 $params['thumb_file'] = $thumbFile;
 $params['stamp'] = $stampChecked ? 1 : 0;
+$params['uid'] = $me['id'];
 
 if ($existing) {
     $sql = 'UPDATE comics SET
@@ -81,14 +83,14 @@ if ($existing) {
                 favorite = :favorite, grail = :grail,
                 value_checked = CASE WHEN :stamp = 1 THEN NOW() ELSE value_checked END,
                 cover_file = :cover_file, thumb_file = :thumb_file, updated_at = NOW()
-            WHERE client_id = :cid';
+            WHERE client_id = :cid AND user_id = :uid';
 } else {
     $sql = 'INSERT INTO comics
-                (client_id, character_name, series, issue, issue_sort, variant, publisher,
+                (user_id, client_id, character_name, series, issue, issue_sort, variant, publisher,
                  year, grade, value, paid, acquired, tags, notes, key_info, favorite, grail,
                  value_checked, cover_file, thumb_file, created_at, updated_at)
             VALUES
-                (:cid, :character_name, :series, :issue, :issue_sort, :variant, :publisher,
+                (:uid, :cid, :character_name, :series, :issue, :issue_sort, :variant, :publisher,
                  :year, :grade, :value, :paid, :acquired, :tags, :notes, :key_info, :favorite, :grail,
                  CASE WHEN :stamp = 1 THEN NOW() ELSE NULL END, :cover_file, :thumb_file,
                  NOW(), NOW())';
@@ -104,8 +106,8 @@ try {
 // Only bin the old images once the row actually points at the new ones.
 foreach ($replaced as $old) delete_cover_image($old);
 
-$row = db()->prepare('SELECT created_at, updated_at, value_checked FROM comics WHERE client_id = :cid');
-$row->execute(['cid' => $clientId]);
+$row = db()->prepare('SELECT created_at, updated_at, value_checked FROM comics WHERE client_id = :cid AND user_id = :uid');
+$row->execute(['cid' => $clientId, 'uid' => $me['id']]);
 $row = $row->fetch() ?: ['created_at' => null, 'updated_at' => null, 'value_checked' => null];
 
 json_response([

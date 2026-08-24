@@ -26,13 +26,14 @@ if ($entry['lockUntil'] > $now) {
 
 start_session();
 
-$ok = $username !== '' && $password !== ''
-    && hash_equals(APP_USERNAME, $username)
-    && password_verify($password, APP_PASSWORD_HASH);
+$user = ($username !== '' && $password !== '') ? find_user_by_username($username) : null;
+$ok = $user && password_verify($password, $user['password_hash']);
 
 if ($ok) {
     unset($attempts[$ip]);
     $_SESSION['logged_in'] = true;
+    $_SESSION['uid'] = (int) $user['id'];
+    db()->prepare('UPDATE users SET last_login = NOW() WHERE id = :id')->execute(['id' => $user['id']]);
 } else {
     $entry['count'] += 1;
     if ($entry['count'] >= 8) {
@@ -53,4 +54,4 @@ if (!$ok) {
     json_response(['error' => 'Incorrect username or password.'], 401);
 }
 
-json_response(['ok' => true]);
+json_response(['ok' => true, 'user' => user_public($user)]);

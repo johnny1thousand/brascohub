@@ -54,6 +54,8 @@ login. Nothing in this folder touches the Car Tracker app at the repo root.
 | `app/index.html` | **The app** — one self-contained file (inline HTML/CSS/JS), no build step. Login-gated. |
 | `collection/index.php` | **The public shelf** — server-rendered, read-only, no login. One SELECT and nothing else. |
 | `assets/brand.css` + `.woff2` + `.webp` | Shared fonts, tokens and brand art for the two public pages. The app keeps its own embedded copies. |
+| `api/signup.php` | Joining with a one-use invite code; claims the code inside a transaction. |
+| `api/account.php` | Your own profile, password, and (owner only) minting invites and listing people. |
 | `api/config.example.php` | Template for server config — copy to `api/config.php` on the server and fill in. **`config.php` is gitignored; never commit real credentials.** |
 | `api/db.php` | PDO connection, table bootstrap, session helpers, image validation/storage helpers. |
 | `api/login.php` | Verifies the shared username/password, starts the session, per-IP rate limiting. |
@@ -66,6 +68,8 @@ login. Nothing in this folder touches the Car Tracker app at the repo root.
 | `uploads/covers/` | Where cover JPEGs are written. `.htaccess` above it blocks script execution and listing. |
 | `fonts/OFL-*.txt` | Licence texts for the two embedded webfonts. Reference only — nothing to upload. |
 | `collection/chart.php` | The main-characters bars, server-rendered — the public twin of the app's `characterBars()`. |
+| `tools/tenant-test.js` | **The important one.** Two accounts, 23 checks that neither can read, edit or delete the other's books. |
+| `tools/quota-test.js` | The monthly cover-read allowance: spending it, the refusal, the rollover, the owner being uncapped. |
 | `tools/comps-test.js` | The comps button: the eBay URL it builds, the checked stamp round trip, all five wordings. |
 | `tools/chart-test.js` | The bars in the app: the cap, the ordering, the scaling, row-click filtering. |
 | `tools/chart-parity.js` + `.php` | Renders eight distributions through both implementations and diffs the markup. |
@@ -247,6 +251,55 @@ button and the settings toggle stay hidden, and typing the fields in by hand wor
   (`{view, sort}`); omit it for a plain block. On the grouped views the single count block is
   deliberately not a link — it describes the view you are already on. Each clickable block carries a
   faint ↗ because there is no hover state on a phone and they would otherwise look inert.
+
+### Accounts, and how one collection is kept out of another
+
+One database, a `users` table, and a `user_id` on every row of `comics`. Each person gets their own
+login, their own books, their own covers and their own public shelf.
+
+**The migration happens by itself, once.** `bootstrap_owner()` in `db.php` copies `APP_USERNAME` and
+`APP_PASSWORD_HASH` out of `config.php` into a `users` row marked `is_owner`, hands every pre-accounts
+book to that row (`UPDATE comics SET user_id = <owner> WHERE user_id = 0`), and re-keys the
+`client_id` uniqueness to `(user_id, client_id)` — because a browser-generated id is only unique
+inside one account. Every step is guarded, so it does nothing on an already-migrated database. The
+owner's password does not change: the same hash is copied across.
+
+**Isolation is enforced in code, at one choke point.** `require_login()` returns the user row, and
+nothing anywhere may name a `user_id` that did not come from it. Every query in `list`, `save`,
+`delete` and `identify` carries `AND user_id = :uid`. That is a real difference from separate
+databases — a missed `WHERE` would be a leak — so `tools/tenant-test.js` exists to attack exactly
+that: it signs up a second account and asserts, in 23 checks, that it sees zero books, that its saves
+and deletes cannot reach the owner's rows, that a colliding `client_id` stays two separate books, and
+that a private shelf renders nothing. Run it after touching any query.
+
+**Invites.** The owner mints one-use codes in Settings → Your account. `signup.php` claims a code with
+an `UPDATE ... WHERE used_by IS NULL` inside a transaction, so two people racing on one code cannot
+both get in, and validates the username, password length and code shape server-side regardless of what
+the browser sent. New accounts start **private** and are never the owner. Signups are rate-limited per
+IP (10 per half hour) — `tools/tenant-test.js` clears that counter so the suite can be re-run.
+
+**The shared key has a per-account allowance.** `AI_MONTHLY_READS` in `config.php` (default 50) caps
+cover reads for everyone except the owner, counted server-side per calendar month, rolling over on the
+1st. A read is counted only after the API actually answers, so a refusal or an error costs nothing.
+`list.php` reports `ai: false` once the allowance is spent, which hides the feature in the UI, and the
+account panel shows "n of m used this month". `tools/quota-test.js` covers all of it.
+
+**Public shelves are per person.** `/collection/?u=<handle>` shows that account's shelf if they have
+turned it on; no parameter still means the owner's, so every link that existed before accounts keeps
+working. A handle is matched against a strict pattern before it reaches a prepared statement. A private
+or unknown shelf renders a plain message and no data. The page is now `no-store`: visibility can flip
+at any moment, and a cached copy of the wrong version is a privacy bug one way and a confusing stale
+page the other.
+
+**Known property, worth deciding on later.** Cover files are served straight from `uploads/covers/`
+with 64-bit random names. They are not listed or enumerable, but a URL that leaks is viewable by
+anyone, even for a private shelf. Serving covers through a PHP guard would close that at the cost of
+PHP on every image; for a friends-and-family install the random name is proportionate. Say the word
+and it becomes `api/cover.php`.
+
+**What is not built yet:** password reset by email (the owner can only help by changing a hash by
+hand), account deletion and per-account export, and a storage quota. If signups ever go public, the
+quota is the first thing to add.
 
 ### Checking what a book is worth (the comps button)
 

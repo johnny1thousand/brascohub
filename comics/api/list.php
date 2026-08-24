@@ -1,14 +1,17 @@
 <?php
 require_once __DIR__ . '/db.php';
-require_login();
+$me = require_login();
 
-$rows = db()->query(
+$rows = db()->prepare(
     'SELECT client_id, character_name, series, issue, variant, publisher, year, grade,
             value, paid, acquired, tags, notes, key_info, favorite, grail, value_checked,
             cover_file, thumb_file, created_at, updated_at
      FROM comics
+     WHERE user_id = :uid
      ORDER BY series ASC, issue_sort ASC, issue ASC, id ASC'
-)->fetchAll();
+);
+$rows->execute(['uid' => $me['id']]);
+$rows = $rows->fetchAll();
 
 $books = [];
 foreach ($rows as $r) {
@@ -37,4 +40,8 @@ foreach ($rows as $r) {
     ];
 }
 
-json_response(['books' => $books, 'ai' => ai_enabled()]);
+json_response([
+    'books' => $books,
+    'ai' => ai_enabled() && reads_available($me),
+    'user' => user_public($me),
+]);
