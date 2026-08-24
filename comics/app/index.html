@@ -123,6 +123,29 @@
   .person-n { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
   .person-vis { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); min-width: 52px; text-align: right; }
 
+  /* ---------- the owner's view of people ---------- */
+  .has-new { position: relative; }
+  .has-new::after { content: ""; position: absolute; top: -2px; right: -2px; width: 9px; height: 9px; border-radius: 50%; background: var(--red); border: 2px solid var(--panel); }
+  .menu-item .acct-new { margin-left: auto; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--red); }
+  .menu-item .acct-new:empty { display: none; }
+  .person { display: block; padding: 11px 2px 12px; border-bottom: 1px solid var(--line); }
+  .person.is-off { opacity: .62; }
+  .p-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; }
+  .p-user { color: var(--muted); font-size: 12px; }
+  .p-tag { background: var(--ink); color: #fff; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em; padding: 3px 6px; border-radius: 3px; }
+  .p-tag--off { background: var(--red); }
+  .p-acts { margin-left: auto; display: flex; gap: 5px; flex-wrap: wrap; }
+  .p-btn { background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 5px 10px; font: inherit; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); cursor: pointer; }
+  .p-btn:hover { border-color: var(--ink); color: var(--ink); }
+  .p-btn--bad:hover { border-color: var(--red); color: var(--red); }
+  .p-btn[disabled] { opacity: .5; cursor: default; }
+  .p-bits { margin-top: 5px; font-size: 11.5px; color: var(--muted); }
+  .p-confirm { margin-top: 9px; }
+  .p-note { margin: 0 0 8px; font-size: 12px; color: var(--ink); background: #FDEBEC; border: 1px solid var(--red); border-radius: var(--radius-sm); padding: 9px 11px; }
+  .p-note code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; font-size: 13px; }
+  .p-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .p-input { width: auto; flex: 1 1 140px; margin: 0; padding: 8px 10px; font-size: 13px; }
+
   /* ---------- comps ---------- */
   .comps { border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--card); padding: 12px 13px 11px; margin: 14px 0 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .btn-comps, .btn-checked { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 9px 14px; font: inherit; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .09em; text-decoration: none; cursor: pointer; }
@@ -621,7 +644,7 @@
           <span>Read covers automatically</span>
           <input type="checkbox" id="autoReadToggle">
         </label>
-        <button class="menu-item" id="accountBtn"><span class="ico">◉</span><span>Your account</span></button>
+        <button class="menu-item" id="accountBtn"><span class="ico">◉</span><span>Your account</span><span class="acct-new"></span></button>
         <button class="menu-item" id="exportBtn"><span class="ico">⬇</span><span>Download a copy (CSV)</span></button>
         <button class="menu-item" id="retryBtn"><span class="ico">⟳</span><span>Sync now</span></button>
         <button class="menu-item" id="logoutBtn"><span class="ico">⏻</span><span>Log out</span></button>
@@ -2084,8 +2107,17 @@
     if (!me) return;
     var pill = el("whoami");
     if (!pill) return;
+    var n = me.new_people || 0;
     pill.textContent = me.display_name;
     pill.title = "Signed in as " + me.username + (me.is_owner ? " (owner)" : "");
+    // A dot on the gear too, since the pill is hidden on a phone.
+    pill.classList.toggle("has-new", n > 0);
+    el("settingsBtn").classList.toggle("has-new", n > 0);
+    var item = el("accountBtn");
+    item.classList.toggle("has-new", n > 0);
+    item.querySelector(".acct-new").textContent = n > 0
+      ? n + (n === 1 ? " new account" : " new accounts")
+      : "";
   }
 
   function showSignup(on) {
@@ -2161,22 +2193,54 @@
     box.style.display = "block";
   }
 
+  function shortDate(stamp) {
+    if (!stamp) return "never";
+    var t = Date.parse(String(stamp).replace(" ", "T"));
+    if (isNaN(t)) return "never";
+    var d = daysSince(stamp);
+    if (d === 0) return "today";
+    if (d === 1) return "yesterday";
+    if (d < 30) return d + " days ago";
+    return new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  }
+
+  function personRow(p) {
+    var bits = [
+      p.books + (p.books === 1 ? " book" : " books"),
+      p.cover_files ? p.cover_kb + " KB of covers" : "no covers",
+      "joined " + shortDate(p.created_at),
+      "last in " + shortDate(p.last_login),
+      p.is_owner ? "reads uncapped" : p.reads_used + "/" + p.reads_limit + " reads this month",
+      p.public_shelf ? "public shelf" : "private shelf"
+    ];
+    var actions = p.is_owner ? '<span class="p-tag">owner</span>' :
+      '<span class="p-acts">' +
+        '<button class="p-btn" data-act="disable" data-user="' + esc(p.username) + '" data-off="' + (p.disabled ? "0" : "1") + '">' +
+          (p.disabled ? "Turn back on" : "Switch off") + "</button>" +
+        '<button class="p-btn" data-act="temp" data-user="' + esc(p.username) + '">New password</button>' +
+        '<button class="p-btn p-btn--bad" data-act="del" data-user="' + esc(p.username) + '">Delete</button>' +
+      "</span>";
+    return '<div class="person' + (p.disabled ? " is-off" : "") + '">' +
+      '<div class="p-top"><strong>' + esc(p.display_name || p.username) + "</strong>" +
+      '<span class="p-user">@' + esc(p.username) + "</span>" +
+      (p.disabled ? '<span class="p-tag p-tag--off">switched off</span>' : "") + actions + "</div>" +
+      '<div class="p-bits">' + esc(bits.join("  ·  ")) + "</div>" +
+      '<div class="p-confirm" style="display:none"></div></div>';
+  }
+
   function loadOwnerLists() {
     api("account.php", { action: "me" }).then(function (res) {
       var inv = (res.invites || []).map(function (i) {
         return '<div class="inv' + (i.used_at ? " is-used" : "") + '">' +
           '<code>' + esc(i.code) + "</code>" +
           (i.used_at ? '<span class="inv-by">used by ' + esc(i.used_by || "someone") + "</span>"
-                     : '<span class="inv-free">unused</span>') +
+                     : '<span class="inv-free">unused</span><button class="p-btn" data-act="revoke" data-code="' + esc(i.code) + '">Revoke</button>') +
           (i.note ? '<span class="inv-note">' + esc(i.note) + "</span>" : "") + "</div>";
       }).join("");
       el("inviteList").innerHTML = inv || '<p class="menu-note">No invites yet.</p>';
-      var people = (res.people || []).map(function (p) {
-        return '<div class="person"><strong>' + esc(p.display_name || p.username) + "</strong>" +
-          '<span class="person-n">' + p.books + (String(p.books) === "1" ? " book" : " books") + "</span>" +
-          '<span class="person-vis">' + (String(p.public_shelf) === "1" ? "public" : "private") + "</span></div>";
-      }).join("");
-      el("peopleList").innerHTML = people;
+      el("peopleList").innerHTML = (res.people || []).map(personRow).join("");
+      // The badge is cleared server-side by opening this list; drop it here too.
+      if (me) { me.new_people = 0; renderWhoami(); }
     }).catch(acctFail);
   }
 
@@ -2408,6 +2472,78 @@
         showToast("\u2713 Password changed");
       }).catch(function (err) { btn.disabled = false; acctFail(err); });
   };
+
+  // Delete asks for the username to be typed back, in the row itself.
+  el("peopleList").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-act]");
+    if (!btn) return;
+    var act = btn.getAttribute("data-act");
+    var user = btn.getAttribute("data-user");
+    var row = btn.closest(".person");
+
+    if (act === "disable") {
+      btn.disabled = true;
+      api("account.php", { action: "disable", username: user, disabled: btn.getAttribute("data-off") })
+        .then(function (res) {
+          el("peopleList").innerHTML = (res.people || []).map(personRow).join("");
+          showToast(btn.getAttribute("data-off") === "1" ? user + " switched off" : user + " switched back on");
+        }).catch(function (err) { btn.disabled = false; acctFail(err); });
+      return;
+    }
+
+    if (act === "temp") {
+      btn.disabled = true;
+      api("account.php", { action: "temp_password", username: user })
+        .then(function (res) {
+          btn.disabled = false;
+          row.querySelector(".p-confirm").style.display = "";
+          row.querySelector(".p-confirm").innerHTML =
+            '<p class="p-note">New password for <strong>' + esc(res.username) + '</strong>: <code>' +
+            esc(res.password) + "</code><br>Hand it over now — it is not shown again, and it is not stored anywhere readable.</p>";
+        }).catch(function (err) { btn.disabled = false; acctFail(err); });
+      return;
+    }
+
+    if (act === "del") {
+      var box = row.querySelector(".p-confirm");
+      box.style.display = "";
+      box.innerHTML = '<p class="p-note">This removes <strong>' + esc(user) +
+        "</strong>, their books and their cover files. It cannot be undone. Type the username to confirm.</p>" +
+        '<span class="p-row"><input class="p-input" placeholder="' + esc(user) + '">' +
+        '<button class="p-btn p-btn--bad" data-go="' + esc(user) + '">Delete for good</button>' +
+        '<button class="p-btn" data-cancel="1">Cancel</button></span>';
+      return;
+    }
+  });
+
+  el("peopleList").addEventListener("click", function (e) {
+    var cancel = e.target.closest("[data-cancel]");
+    if (cancel) {
+      var b = cancel.closest(".p-confirm");
+      b.style.display = "none";
+      b.innerHTML = "";
+      return;
+    }
+    var go = e.target.closest("[data-go]");
+    if (!go) return;
+    var user = go.getAttribute("data-go");
+    var input = go.closest(".p-confirm").querySelector(".p-input");
+    go.disabled = true;
+    api("account.php", { action: "delete_user", username: user, confirm: input.value.trim() })
+      .then(function (res) {
+        el("peopleList").innerHTML = (res.people || []).map(personRow).join("");
+        showToast("Deleted " + res.deleted + " and " + plural(res.books, "book"));
+      }).catch(function (err) { go.disabled = false; acctFail(err); });
+  });
+
+  el("inviteList").addEventListener("click", function (e) {
+    var btn = e.target.closest('[data-act="revoke"]');
+    if (!btn) return;
+    btn.disabled = true;
+    api("account.php", { action: "revoke", code: btn.getAttribute("data-code") })
+      .then(function () { loadOwnerLists(); showToast("Invite revoked"); })
+      .catch(function (err) { btn.disabled = false; acctFail(err); });
+  });
 
   el("mintBtn").onclick = function () {
     var btn = this;

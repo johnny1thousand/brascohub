@@ -12,6 +12,63 @@ $me = require_login();
 $in = read_json_body(64 * 1024);
 $action = (string) ($in['action'] ?? '');
 
+/**
+ * Everyone, with what a host actually needs to see. Cover bytes are measured on
+ * disk rather than trusted from the database, so the number is the real one.
+ */
+function people_list() {
+    $rows = db()->query('SELECT id, username, display_name, handle, public_shelf, disabled,
+                                created_at, last_login, ai_reads_used, ai_reads_month, is_owner,
+                                (SELECT COUNT(*) FROM comics c WHERE c.user_id = users.id) AS books
+                         FROM users ORDER BY is_owner DESC, id ASC LIMIT 500')->fetchAll();
+    $month = gmdate('Y-m');
+    $dir = covers_dir();
+    foreach ($rows as $i => $r) {
+        $files = db()->prepare('SELECT cover_file, thumb_file FROM comics WHERE user_id = :uid');
+        $files->execute(['uid' => $r['id']]);
+        $bytes = 0;
+        $count = 0;
+        foreach ($files->fetchAll() as $f) {
+            foreach ([$f['cover_file'], $f['thumb_file']] as $name) {
+                if ($name === '' || !preg_match('/^[A-Za-z0-9._-]+$/', $name)) continue;
+                $path = $dir . '/' . $name;
+                if (is_file($path)) { $bytes += (int) filesize($path); $count++; }
+            }
+        }
+        $rows[$i] = [
+            'username' => $r['username'],
+            'display_name' => $r['display_name'],
+            'handle' => $r['handle'],
+            'is_owner' => (int) $r['is_owner'] === 1,
+            'disabled' => (int) $r['disabled'] === 1,
+            'public_shelf' => (int) $r['public_shelf'] === 1,
+            'created_at' => $r['created_at'],
+            'last_login' => $r['last_login'] ?: '',
+            'books' => (int) $r['books'],
+            'cover_files' => $count,
+            'cover_kb' => (int) round($bytes / 1024),
+            'reads_used' => $r['ai_reads_month'] === $month ? (int) $r['ai_reads_used'] : 0,
+            'reads_limit' => (int) $r['is_owner'] === 1 ? 0 : ai_monthly_reads(),
+        ];
+    }
+    return $rows;
+}
+
+/** The account an admin action names, refusing self and the owner. */
+function target_user($username, array $me) {
+    $u = find_user_by_username(trim((string) $username));
+    if (!$u) {
+        json_response(['error' => 'No such account.'], 404);
+    }
+    if ((int) $u['id'] === (int) $me['id']) {
+        json_response(['error' => 'That is your own account.'], 400);
+    }
+    if ((int) $u['is_owner'] === 1) {
+        json_response(['error' => 'The owner account cannot be changed here.'], 403);
+    }
+    return $u;
+}
+
 switch ($action) {
 
     // ---- who am I, plus the owner's invite list ----
@@ -32,10 +89,9 @@ switch ($action) {
                     'used_by' => $r['used_by_name'] ?: '',
                 ];
             }, $rows);
-            $people = db()->query('SELECT username, display_name, handle, public_shelf, created_at,
-                                          (SELECT COUNT(*) FROM comics c WHERE c.user_id = users.id) AS books
-                                   FROM users ORDER BY id ASC LIMIT 200')->fetchAll();
-            $out['people'] = $people;
+            $out['people'] = people_list();
+            // Opening this list is what "seen" means, so the badge clears here.
+            db()->prepare('UPDATE users SET people_seen_at = NOW() WHERE id = :id')->execute(['id' => $me['id']]);
         }
         json_response($out);
 
@@ -88,6 +144,59 @@ switch ($action) {
             }
         }
         json_response(['error' => 'Could not create an invite. Try again.'], 500);
+
+    // ---- owner only: take back an invite that has not been used ----
+    case 'revoke':
+        require_owner($me);
+        $code = strtoupper(trim((string) ($in['code'] ?? '')));
+        $del = db()->prepare('DELETE FROM invites WHERE code = :c AND used_by IS NULL AND used_at IS NULL');
+        $del->execute(['c' => $code]);
+        if ($del->rowCount() !== 1) {
+            json_response(['error' => 'That code has already been used, or does not exist.'], 400);
+        }
+        json_response(['ok' => true]);
+
+    // ---- owner only: switch an account off, or back on. Data untouched. ----
+    case 'disable':
+        require_owner($me);
+        $u = target_user($in['username'] ?? '', $me);
+        $off = clean_flag($in['disabled'] ?? 1);
+        db()->prepare('UPDATE users SET disabled = :d WHERE id = :id')->execute(['d' => $off, 'id' => $u['id']]);
+        json_response(['ok' => true, 'people' => people_list()]);
+
+    // ---- owner only: a new password for somebody locked out ----
+    case 'temp_password':
+        require_owner($me);
+        $u = target_user($in['username'] ?? '', $me);
+        $alphabet = 'abcdefghijkmnpqrstuvwxyz23456789';
+        $temp = '';
+        for ($i = 0; $i < 14; $i++) { $temp .= $alphabet[random_int(0, strlen($alphabet) - 1)]; }
+        db()->prepare('UPDATE users SET password_hash = :p WHERE id = :id')
+            ->execute(['p' => password_hash($temp, PASSWORD_BCRYPT), 'id' => $u['id']]);
+        // Shown once, to be handed over; it is not stored anywhere in the clear.
+        json_response(['ok' => true, 'password' => $temp, 'username' => $u['username']]);
+
+    // ---- owner only: remove an account, its books and its cover files ----
+    case 'delete_user':
+        require_owner($me);
+        $u = target_user($in['username'] ?? '', $me);
+        // The browser must echo the username back: a mis-click cannot delete a
+        // collection.
+        if (trim((string) ($in['confirm'] ?? '')) !== $u['username']) {
+            json_response(['error' => 'Type the username exactly to confirm.'], 400);
+        }
+        $files = db()->prepare('SELECT cover_file, thumb_file FROM comics WHERE user_id = :uid');
+        $files->execute(['uid' => $u['id']]);
+        $rows = $files->fetchAll();
+        db()->prepare('DELETE FROM comics WHERE user_id = :uid')->execute(['uid' => $u['id']]);
+        db()->prepare('UPDATE invites SET used_by = NULL WHERE used_by = :uid')->execute(['uid' => $u['id']]);
+        db()->prepare('DELETE FROM users WHERE id = :uid')->execute(['uid' => $u['id']]);
+        // Files last: a row without its image is recoverable, an orphan file is litter.
+        foreach ($rows as $f) {
+            delete_cover_image($f['cover_file']);
+            delete_cover_image($f['thumb_file']);
+        }
+        json_response(['ok' => true, 'deleted' => $u['username'], 'books' => count($rows), 'people' => people_list()]);
 
     default:
         json_response(['error' => 'Unknown action.'], 400);

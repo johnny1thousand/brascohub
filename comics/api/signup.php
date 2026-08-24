@@ -91,6 +91,8 @@ try {
     $id = (int) $pdo->lastInsertId();
 
     $pdo->prepare('UPDATE invites SET used_by = :id WHERE code = :c')->execute(['id' => $id, 'c' => $code]);
+    // Signing up signs you in, so it counts as a login.
+    $pdo->prepare('UPDATE users SET last_login = NOW() WHERE id = :id')->execute(['id' => $id]);
     $pdo->commit();
 } catch (PDOException $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();

@@ -27,7 +27,8 @@ if ($entry['lockUntil'] > $now) {
 start_session();
 
 $user = ($username !== '' && $password !== '') ? find_user_by_username($username) : null;
-$ok = $user && password_verify($password, $user['password_hash']);
+$ok = $user && empty($user['disabled']) && password_verify($password, $user['password_hash']);
+$switchedOff = $user && !empty($user['disabled']) && password_verify($password, $user['password_hash']);
 
 if ($ok) {
     unset($attempts[$ip]);
@@ -51,7 +52,11 @@ flock($fh, LOCK_UN);
 fclose($fh);
 
 if (!$ok) {
-    json_response(['error' => 'Incorrect username or password.'], 401);
+    // Say plainly that the account exists but is off, rather than pretending the
+    // password is wrong — the person would just keep retyping it.
+    json_response(['error' => $switchedOff
+        ? 'This account has been switched off. Ask the owner to turn it back on.'
+        : 'Incorrect username or password.'], 401);
 }
 
 json_response(['ok' => true, 'user' => user_public($user)]);

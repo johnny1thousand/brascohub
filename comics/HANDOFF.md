@@ -68,6 +68,7 @@ login. Nothing in this folder touches the Car Tracker app at the repo root.
 | `uploads/covers/` | Where cover JPEGs are written. `.htaccess` above it blocks script execution and listing. |
 | `fonts/OFL-*.txt` | Licence texts for the two embedded webfonts. Reference only — nothing to upload. |
 | `collection/chart.php` | The main-characters bars, server-rendered — the public twin of the app's `characterBars()`. |
+| `tools/admin-test.js` | The owner's view: the new-signup badge, what the people list reports, and all four admin actions. |
 | `tools/tenant-test.js` | **The important one.** Two accounts, 23 checks that neither can read, edit or delete the other's books. |
 | `tools/quota-test.js` | The monthly cover-read allowance: spending it, the refusal, the rollover, the owner being uncapped. |
 | `tools/comps-test.js` | The comps button: the eBay URL it builds, the checked stamp round trip, all five wordings. |
@@ -300,6 +301,36 @@ and it becomes `api/cover.php`.
 **What is not built yet:** password reset by email (the owner can only help by changing a hash by
 hand), account deletion and per-account export, and a storage quota. If signups ever go public, the
 quota is the first thing to add.
+
+### The owner's view of everybody else
+
+**A badge, not an email.** `list.php` returns `new_people` — accounts created since `people_seen_at` on
+the owner's row — and the app puts a red dot on the gear and the name pill, plus a count beside
+"Your account". Opening the people list is what counts as seen: `account.php?action=me` stamps
+`people_seen_at` and the dot clears. No mail to deliver, nothing to land in spam. (Email on signup was
+offered and not taken; `mail()` from shared hosting was the only option and its deliverability could
+not be verified from here.)
+
+**The people list** reports, per account: books, cover bytes **measured on disk** rather than trusted
+from the database, joined and last-seen dates, reads used this month against the allowance, and whether
+the shelf is public. `last_login` is stamped by signup as well as login, since signing up signs you in.
+
+**Four actions, all owner-only, all refusing self and the owner row** (`require_owner()` then
+`target_user()`):
+
+* **Revoke** an invite — only while unused; a claimed code cannot be un-claimed.
+* **Switch off** an account — `disabled` on `users`. `login.php` refuses it *and says so plainly*
+  rather than pretending the password is wrong, and `require_login()` destroys a live session on the
+  next request, so switching someone off takes effect immediately rather than when their cookie expires.
+* **New password** — a 14-character temporary password, returned once, hashed on the way in. It is the
+  only recovery path, because no email address is collected anywhere.
+* **Delete** — the account, its books, and its cover files, in that order (a row without an image is
+  recoverable; an orphan file is litter). The browser must echo the username back or the request is
+  refused, and the confirmation is a typed field in the row, not a `confirm()` dialog.
+
+`node tools/admin-test.js` covers all of it in 29 checks, including the ones that must fail: a normal
+account cannot switch anyone off, does not receive the people list at all, a wrong confirmation deletes
+nothing, and the owner cannot delete themselves.
 
 ### Checking what a book is worth (the comps button)
 

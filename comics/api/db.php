@@ -90,6 +90,22 @@ function db() {
             }
         }
 
+        // Same idempotent trick for the users table.
+        $userCols = [
+            'disabled' => 'ADD COLUMN disabled TINYINT(1) NOT NULL DEFAULT 0',
+            'people_seen_at' => 'ADD COLUMN people_seen_at DATETIME NULL',
+        ];
+        foreach ($userCols as $column => $ddl) {
+            try {
+                $has = $pdo->prepare('SHOW COLUMNS FROM users LIKE ?');
+                $has->execute([$column]);
+                if (!$has->fetch()) {
+                    $pdo->exec('ALTER TABLE users ' . $ddl);
+                }
+            } catch (PDOException $e) {
+            }
+        }
+
         bootstrap_owner($pdo);
     }
     return $pdo;
@@ -184,6 +200,11 @@ function require_login() {
         session_destroy();
         json_response(['error' => 'Not logged in'], 401);
     }
+    if (!empty($user['disabled'])) {
+        // Switched off while signed in: the session stops working immediately.
+        session_destroy();
+        json_response(['error' => 'This account has been switched off.'], 403);
+    }
     return $user;
 }
 
@@ -215,7 +236,26 @@ function user_public(array $u) {
         'public_shelf' => (int) $u['public_shelf'] === 1,
         'reads_used' => reads_used_this_month($u),
         'reads_limit' => (int) $u['is_owner'] === 1 ? 0 : ai_monthly_reads(),
+        'new_people' => unseen_people($u),
     ];
+}
+
+/** Refuses anyone but the owner. Every admin action starts with this. */
+function require_owner(array $me) {
+    if ((int) $me['is_owner'] !== 1) {
+        json_response(['error' => 'Only the owner can do that.'], 403);
+    }
+}
+
+/** Accounts created since the owner last looked at the people list. */
+function unseen_people(array $me) {
+    if ((int) $me['is_owner'] !== 1) return 0;
+    $since = $me['people_seen_at'];
+    $sql = 'SELECT COUNT(*) FROM users WHERE is_owner = 0'
+        . ($since ? ' AND created_at > :since' : '');
+    $q = db()->prepare($sql);
+    $q->execute($since ? ['since' => $since] : []);
+    return (int) $q->fetchColumn();
 }
 
 // ---------- the shared cover-read allowance ----------
