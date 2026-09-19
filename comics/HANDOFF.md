@@ -56,7 +56,7 @@ login. Nothing in this folder touches the Car Tracker app at the repo root.
 | `assets/brand.css` + `.woff2` + `.webp` | Shared fonts, tokens and brand art for the two public pages. The app keeps its own embedded copies. |
 | `api/signup.php` | Joining with a one-use invite code; claims the code inside a transaction. |
 | `api/account.php` | Your own profile, password, and (owner only) minting invites and listing people. |
-| `api/config.example.php` | Template for server config — copy to `api/config.php` on the server and fill in. **`config.php` is gitignored; never commit real credentials.** |
+| `api/config.example.php` | Template for server config — copy to `<domain>/private/config.php` on the server (outside the web root; `api/config.php` still works) and fill in. **`config.php` is gitignored; never commit real credentials.** |
 | `api/db.php` | PDO connection, table bootstrap, session helpers, image validation/storage helpers. |
 | `api/login.php` | Verifies the shared username/password, starts the session, per-IP rate limiting. |
 | `api/logout.php` | Destroys the session. |
@@ -64,7 +64,7 @@ login. Nothing in this folder touches the Car Tracker app at the repo root.
 | `api/save.php` | Session-guarded; inserts or updates one book, writes/replaces its cover files. |
 | `api/delete.php` | Session-guarded; deletes one book and its cover files. |
 | `api/identify.php` | Session-guarded; sends a cover photo to the Claude API and returns the fields it can support, for the form to prefill. Writes nothing. |
-| `api/.htaccess` | Blocks direct web access to `config.php`; no directory listing. |
+| `api/.htaccess` | Blocks direct web access to a legacy `api/config.php`; no directory listing. |
 | `uploads/covers/` | Where cover JPEGs are written. `.htaccess` above it blocks script execution and listing. |
 | `fonts/OFL-*.txt` | Licence texts for the two embedded webfonts. Reference only — nothing to upload. |
 | `collection/chart.php` | The main-characters bars, server-rendered — the public twin of the app's `characterBars()`. |
@@ -459,8 +459,29 @@ through a later edit. Condition is out too, matching what the page's own copy pr
 
 **Everything that writes stays behind the login.** `list`, `save`, `delete` and `identify` each call
 `require_login()` and answer 401 without a session; verified logged-out, including that a POST of a
-fake book to `save.php` writes nothing. `api/config.php` is denied by `api/.htaccess` on Apache, and
-even if it were served it executes to an empty body (it is only `define()`s).
+fake book to `save.php` writes nothing.
+
+**Where the secrets live.** `config.php` holds the database password and the Anthropic API key, so the
+best place for it is somewhere Apache has no path to at all. `api/db.php` looks in two places, in
+order:
+
+1. `<domain>/private/config.php` — a sibling of `public_html`, **outside the web root**. Nothing under
+   it is reachable by any URL, whatever `.htaccess` says and even if PHP ever stops executing and
+   starts serving `.php` files as plain text. This is the one to use.
+2. `api/config.php` — the original spot, still supported so nothing breaks mid-move. It is denied by
+   `api/.htaccess` on Apache, and even if it were served it executes to an empty body (it is only
+   `define()`s) — but both of those defences live inside the web root.
+
+The first file found wins, so a forgotten copy in `api/` cannot shadow the real one in `private/`
+(tested: a deliberately broken `api/config.php` was ignored while `private/config.php` was in place).
+With neither file present the site fails closed — a 500 with `{"error":"The site is not configured
+yet."}` from `api/`, one plain sentence from the pages — and the message never names the paths that
+were searched, because that is a map of the filesystem. `db.php` is the only file that includes the
+config, so moving it is a one-file change.
+
+To move it with no downtime: upload the new `api/db.php` first (it reads both locations), then create
+`private/` beside `public_html` and **copy** `config.php` into it, check the app still works, and only
+then delete `api/config.php`.
 
 The app moved from `/` to `/app/` so the root could be the home page. Two constants carry that:
 `API_BASE = "../api/"` and `COVER_PATH = "../uploads/covers/"`. The session cookie is scoped to the
@@ -595,8 +616,9 @@ so nothing overlaps.
    - `comics/index.html` → `public_html/index.html`
    - `comics/api/` (the whole folder) → `public_html/api/`
    - `comics/uploads/` (the whole folder, including `covers/` and its `.htaccess`) → `public_html/uploads/`
-4. **`api/config.php`** is already filled in inside the deployment zip that was handed to the owner
-   (live DB credentials + the app login). It stays out of git. To change the app password later,
+4. **`config.php`** is already filled in inside the deployment zip that was handed to the owner
+   (live DB credentials + the app login). It stays out of git. It belongs in `<domain>/private/`,
+   outside the web root — see "Where the secrets live" above; `api/config.php` is the legacy spot. To change the app password later,
    regenerate the hash with
    `php -r 'echo password_hash("new-password", PASSWORD_BCRYPT), PHP_EOL;'`
    and replace the `APP_PASSWORD_HASH` line on the server.

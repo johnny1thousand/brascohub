@@ -1,6 +1,13 @@
 <?php
 // Copy this file to config.php and fill in your real values.
 // config.php is gitignored — never commit real credentials.
+//
+// Put it OUTSIDE the web root, beside public_html:
+//     /home/<account>/domains/<site>/private/config.php
+// Apache has no path to that directory, so the database password and the API
+// key cannot be fetched by any URL. api/config.php still works if you have not
+// moved it yet, but it sits inside the served folder; the private/ copy wins
+// when both exist.
 
 // Database connection (hPanel → Databases → MySQL Databases)
 define('DB_HOST', 'localhost');

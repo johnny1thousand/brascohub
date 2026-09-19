@@ -1,5 +1,46 @@
 <?php
-require_once __DIR__ . '/config.php';
+/**
+ * Where the secrets live.
+ *
+ * Preferred: one directory ABOVE the web root, e.g.
+ *     /home/<account>/domains/<site>/private/config.php
+ * with the site served from .../public_html. Apache cannot serve a file it has
+ * no path to, so the key is unreachable by any URL — no reliance on .htaccess
+ * being honoured, and no exposure if PHP ever stops executing and files start
+ * being served as plain text.
+ *
+ * Fallback: api/config.php, the original location. Still defended by
+ * api/.htaccess and by the file having nothing to print, but both of those live
+ * inside the web root. Move it when you can.
+ */
+$configCandidates = [
+    dirname(dirname(__DIR__)) . '/private/config.php',  // outside public_html
+    __DIR__ . '/config.php',                            // legacy, inside it
+];
+$configLoaded = false;
+foreach ($configCandidates as $candidate) {
+    if (is_file($candidate)) {
+        require_once $candidate;
+        $configLoaded = true;
+        break;
+    }
+}
+if (!$configLoaded) {
+    // Fail closed, and say as little as possible: never name the paths that
+    // were searched, because that is a map of the filesystem. The API answers
+    // in JSON, the pages in plain words.
+    http_response_code(500);
+    if (basename(dirname($_SERVER['SCRIPT_FILENAME'] ?? '')) === 'api') {
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'The site is not configured yet.']);
+    } else {
+        header('Content-Type: text/html; charset=utf-8');
+        echo '<!doctype html><meta charset="utf-8"><title>LongBox</title>'
+           . '<p style="font:16px/1.5 system-ui,sans-serif;margin:3rem auto;max-width:28rem">'
+           . 'LongBox is not configured yet. Please try again shortly.</p>';
+    }
+    exit;
+}
 
 function db() {
     static $pdo = null;
