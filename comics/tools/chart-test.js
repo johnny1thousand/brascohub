@@ -1,11 +1,18 @@
 // "Main characters": the bars, their scaling, and that a row filters the shelf.
 const { chromium } = require('playwright');
+const LOGIN_USER = process.env.LONGBOX_USER || 'Thanos';
+const LOGIN_PASS = process.env.LONGBOX_PASS;
+if (!LOGIN_PASS) {
+  console.error('Set LONGBOX_PASS (and LONGBOX_USER if it is not Thanos) before running this test.');
+  process.exit(2);
+}
+
 (async () => {
   const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
   const p = await b.newPage({ viewport: { width: 1340, height: 1200 }, deviceScaleFactor: 2 });
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://127.0.0.1:8899/app/', { waitUntil: 'networkidle' });
-  await p.fill('#loginUser','Thanos'); await p.fill('#loginPass','Cra3653793!@#'); await p.click('#loginBtn');
+  await p.fill('#loginUser',LOGIN_USER); await p.fill('#loginPass',LOGIN_PASS); await p.click('#loginBtn');
   await p.waitForFunction(()=>!document.getElementById('loginScreen').classList.contains('open'));
   await p.waitForTimeout(900);
 

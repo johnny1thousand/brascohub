@@ -92,6 +92,20 @@ login. Nothing in this folder touches the Car Tracker app at the repo root.
   SSL, so this is fine in production. Where the camera API is unavailable the app automatically falls
   back to the phone's own camera/photo picker, so nothing breaks.
 
+**Credentials never go in a file here.** The browser tests sign in as the owner, and they read that
+from the environment:
+
+```bash
+export LONGBOX_PASS='...'        # LONGBOX_USER too, if it is not Thanos
+node tools/tenant-test.js
+```
+
+A test with no `LONGBOX_PASS` set exits with a message rather than running. This is not a style
+preference: the owner's real password was hardcoded in ten of these files and pushed to a **public**
+GitHub repository, where it sat until 2026-08-24. Removing it from the working tree does not remove it
+from the history, so the password itself had to be changed. Do not put a live credential in this
+folder again, even temporarily — everything here gets committed.
+
 ## 4. Design system
 
 Styled after a comic-book publisher landing page the owner picked as the reference: cream paper, a

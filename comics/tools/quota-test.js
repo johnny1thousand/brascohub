@@ -4,6 +4,13 @@
 const { chromium } = require('playwright');
 const { execSync } = require('child_process');
 const fs = require('fs');
+const LOGIN_USER = process.env.LONGBOX_USER || 'Thanos';
+const LOGIN_PASS = process.env.LONGBOX_PASS;
+if (!LOGIN_PASS) {
+  console.error('Set LONGBOX_PASS (and LONGBOX_USER if it is not Thanos) before running this test.');
+  process.exit(2);
+}
+
 const BASE = 'http://127.0.0.1:8899';
 const NAME = 'tester' + Math.floor(Math.random() * 1e6);
 const IMG = 'data:image/jpeg;base64,' + fs.readFileSync('/tmp/fake-cover.jpg').toString('base64');
@@ -22,7 +29,7 @@ const api = async (ctx, path, body) => {
   const check = (l, ok, d) => { if (!ok) fails++; console.log((ok ? '  ok    ' : 'FAIL    ') + l + (d ? ' — ' + d : '')); };
 
   const owner = await b.newContext();
-  await api(owner, 'login.php', { username: 'Thanos', password: 'Cra3653793!@#' });
+  await api(owner, 'login.php', { username: LOGIN_USER, password: LOGIN_PASS });
   let r = await api(owner, 'account.php', { action: 'invite' });
   const friend = await b.newContext();
   r = await api(friend, 'signup.php', { invite: r.json.code, username: NAME, password: 'a-good-long-password' });

@@ -3,6 +3,13 @@
 // tell different stories about one shelf.
 const { chromium } = require('playwright');
 const { execFileSync } = require('child_process');
+const LOGIN_USER = process.env.LONGBOX_USER || 'Thanos';
+const LOGIN_PASS = process.env.LONGBOX_PASS;
+if (!LOGIN_PASS) {
+  console.error('Set LONGBOX_PASS (and LONGBOX_USER if it is not Thanos) before running this test.');
+  process.exit(2);
+}
+
 const CASES = {
   'two characters':      { 'Spider-Man': 3, 'Batman': 1 },
   'exactly five':        { 'A': 5, 'B': 4, 'C': 3, 'D': 2, 'E': 1 },
@@ -18,7 +25,7 @@ const books = counts => Object.entries(counts).flatMap(([c, n]) => Array.from({ 
   const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
   const p = await b.newPage();
   await p.goto('http://127.0.0.1:8899/app/', { waitUntil: 'networkidle' });
-  await p.fill('#loginUser','Thanos'); await p.fill('#loginPass','Cra3653793!@#'); await p.click('#loginBtn');
+  await p.fill('#loginUser',LOGIN_USER); await p.fill('#loginPass',LOGIN_PASS); await p.click('#loginBtn');
   await p.waitForFunction(()=>!document.getElementById('loginScreen').classList.contains('open'));
   await p.waitForTimeout(600);
   let bad = 0;

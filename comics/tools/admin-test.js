@@ -2,6 +2,13 @@
 // reports, and the four actions — revoke, switch off, temporary password, delete.
 const { chromium } = require('playwright');
 const { execSync } = require('child_process');
+const LOGIN_USER = process.env.LONGBOX_USER || 'Thanos';
+const LOGIN_PASS = process.env.LONGBOX_PASS;
+if (!LOGIN_PASS) {
+  console.error('Set LONGBOX_PASS (and LONGBOX_USER if it is not Thanos) before running this test.');
+  process.exit(2);
+}
+
 const BASE = 'http://127.0.0.1:8899';
 const N1 = 'tester' + Math.floor(Math.random() * 1e6);
 const N2 = 'tester' + Math.floor(Math.random() * 1e6);
@@ -22,7 +29,7 @@ const api = async (ctx, path, body) => {
   const check = (l, ok, d) => { if (!ok) fails++; console.log((ok ? '  ok    ' : 'FAIL    ') + l + (d ? ' — ' + d : '')); };
 
   const owner = await b.newContext();
-  await api(owner, 'login.php', { username: 'Thanos', password: 'Cra3653793!@#' });
+  await api(owner, 'login.php', { username: LOGIN_USER, password: LOGIN_PASS });
 
   // --- badge starts clear, then two people join
   let r = await api(owner, 'list.php');
@@ -79,7 +86,7 @@ const api = async (ctx, path, body) => {
   check('and the old password stops working', r.status === 401);
 
   // --- guard rails
-  r = await api(owner, 'account.php', { action: 'delete_user', username: 'Thanos', confirm: 'Thanos' });
+  r = await api(owner, 'account.php', { action: 'delete_user', username: LOGIN_USER, confirm: LOGIN_USER });
   check('the owner cannot delete themselves', r.status === 400 || r.status === 403, 'status ' + r.status);
   r = await api(c, 'account.php', { action: 'disable', username: N1, disabled: 1 });
   check('a normal account cannot switch anyone off', r.status === 403);

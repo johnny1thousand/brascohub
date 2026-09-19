@@ -3,6 +3,13 @@
 const { chromium } = require('playwright');
 const BASE = 'http://127.0.0.1:8899';
 const { execSync } = require('child_process');
+const LOGIN_USER = process.env.LONGBOX_USER || 'Thanos';
+const LOGIN_PASS = process.env.LONGBOX_PASS;
+if (!LOGIN_PASS) {
+  console.error('Set LONGBOX_PASS (and LONGBOX_USER if it is not Thanos) before running this test.');
+  process.exit(2);
+}
+
 // A fresh name per run, so the test can be run twice in a row.
 const NAME = 'tester' + Math.floor(Math.random() * 1e6);
 const cleanup = () => {
@@ -32,7 +39,7 @@ const api = async (ctx, path, body) => {
 
   // --- the owner signs in and mints an invite
   const owner = await b.newContext();
-  let r = await api(owner, 'login.php', { username: 'Thanos', password: 'Cra3653793!@#' });
+  let r = await api(owner, 'login.php', { username: LOGIN_USER, password: LOGIN_PASS });
   check('owner signs in', r.status === 200 && r.json.user.is_owner === true);
   const ownerBooks = (await api(owner, 'list.php')).json.books.length;
   console.log('        owner has ' + ownerBooks + ' books');

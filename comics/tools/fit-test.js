@@ -2,6 +2,13 @@
 // widths that matter. Run the app on 127.0.0.1:8899, then: node tools/fit-test.js
 // Chromium, not Safari — close enough for flexbox/grid, not a substitute for a real device.
 const { chromium, devices } = require('playwright');
+const LOGIN_USER = process.env.LONGBOX_USER || 'Thanos';
+const LOGIN_PASS = process.env.LONGBOX_PASS;
+if (!LOGIN_PASS) {
+  console.error('Set LONGBOX_PASS (and LONGBOX_USER if it is not Thanos) before running this test.');
+  process.exit(2);
+}
+
 const SP = '/tmp/claude-0/-home-user-brascohub/169f776e-18f4-5450-9fee-3326c3d106b9/scratchpad';
 
 // Widths that matter: the narrowest phone still in use, through the current
@@ -24,7 +31,7 @@ const CASES = [
     const ctx = await b.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
     const p = await ctx.newPage();
     await p.goto('http://127.0.0.1:8899/app/', { waitUntil: 'networkidle' });
-    await p.fill('#loginUser', 'Thanos'); await p.fill('#loginPass', 'Cra3653793!@#'); await p.click('#loginBtn');
+    await p.fill('#loginUser', LOGIN_USER); await p.fill('#loginPass', LOGIN_PASS); await p.click('#loginBtn');
     await p.waitForFunction(() => !document.getElementById('loginScreen').classList.contains('open'));
     await p.waitForTimeout(500);
 

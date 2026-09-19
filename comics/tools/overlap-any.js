@@ -1,6 +1,13 @@
 // Generic version: any element past the viewport, any heading whose own line
 // boxes overlap. Run against a URL: node overlap-any.js /collection/
 const { chromium } = require('playwright');
+const LOGIN_USER = process.env.LONGBOX_USER || 'Thanos';
+const LOGIN_PASS = process.env.LONGBOX_PASS;
+if (!LOGIN_PASS) {
+  console.error('Set LONGBOX_PASS (and LONGBOX_USER if it is not Thanos) before running this test.');
+  process.exit(2);
+}
+
 const path = process.argv[2] || '/';
 const WIDTHS = [320, 360, 375, 393, 412, 430, 540, 768, 900, 1024, 1180, 1340];
 const probe = () => {
@@ -30,7 +37,7 @@ const probe = () => {
     const p = await ctx.newPage();
     await p.goto('http://127.0.0.1:8899' + path, { waitUntil: 'networkidle' });
     if (path.startsWith('/app')) {
-      await p.fill('#loginUser', 'Thanos'); await p.fill('#loginPass', 'Cra3653793!@#'); await p.click('#loginBtn');
+      await p.fill('#loginUser', LOGIN_USER); await p.fill('#loginPass', LOGIN_PASS); await p.click('#loginBtn');
       await p.waitForFunction(() => !document.getElementById('loginScreen').classList.contains('open'));
       await p.waitForTimeout(600);
     }
